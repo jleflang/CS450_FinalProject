@@ -16,6 +16,10 @@
 #include <GL/glu.h>
 #include "glut.h"
 
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
 #include "loadobjfile.h"
 
 
@@ -53,7 +57,7 @@ const int GLUIFALSE = { false };
 
 // initial window size:
 
-const int INIT_WINDOW_SIZE = { 600 };
+const int INIT_WINDOW_SIZE = { 768 };
 
 // size of the 3d box:
 
@@ -84,7 +88,8 @@ const int LEFT = { 4 };
 const int MIDDLE = { 2 };
 const int RIGHT = { 1 };
 
-float White[] = { 1., 1., 1. };
+float White[3] = { 1., 1., 1. };
+const float D2R = (float)M_PI / 180.f;
 
 // which projection:
 
@@ -214,7 +219,7 @@ void	DoDepthMenu(int);
 void	DoDebugMenu(int);
 void	DoMainMenu(int);
 void	DoProjectMenu(int);
-void	DoShadowMenu();
+//void	DoShadowMenu();
 void	DoRasterString(float, float, float, char*);
 void	DoStrokeString(float, float, float, float, char*);
 float	ElapsedSeconds();
@@ -228,7 +233,6 @@ void	Reset();
 void	Resize(int, int);
 void	Visibility(int);
 
-void            OsuCone(float, float, float, int, int);
 void            OsuSphere(float, int, int);
 void			Axes(float);
 unsigned char* BmpToTexture(char*, int*, int*);
@@ -236,9 +240,9 @@ void			HsvRgb(float[3], float[3]);
 int				ReadInt(FILE*);
 short			ReadShort(FILE*);
 
-void			Cross(float[3], float[3], float[3]);
-float			Dot(float[3], float[3]);
-float			Unit(float[3], float[3]);
+//void			Cross(float[3], float[3], float[3]);
+//float			Dot(float[3], float[3]);
+//float			Unit(float[3], float[3]);
 
 void	SetMaterial(float, float, float, float);
 void	SetPointLight(int, float, float, float, float, float, float);
@@ -367,10 +371,14 @@ Display()
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
+    glm::mat4 projection;
+
     if (WhichProjection == ORTHO)
-        glOrtho(-3., 3., -3., 3., 0.1, 1000.);
+        projection = glm::ortho(-3., 3., -3., 3., 0.1, 1000.);
     else
-        gluPerspective(90., 1., 0.1, 1000.);
+        projection = glm::perspective(D2R*90., 1., 0.1, 1000.);
+
+    glMultMatrixf(glm::value_ptr(projection));
 
 
     // place the objects into the scene:
@@ -380,21 +388,33 @@ Display()
 
     // set the eye position, look-at position, and up-vector:
 
-    gluLookAt(16., -3.7, 11.2, 0., 0., 0., 0., 1., 0.);
+    glm::mat4 modelview;
+    glm::vec3 eye(16., -3.7, 11.2);
+    glm::vec3 look(0., 0., 0.);
+    glm::vec3 up(0., 1., 0.);
+
+    modelview = glm::lookAt(eye, look, up);
+
+    //gluLookAt(16., -3.7, 11.2, 0., 0., 0., 0., 1., 0.);
 
 
     // rotate the scene:
 
-    glRotatef((GLfloat)Yrot, 0., 1., 0.);
-    glRotatef((GLfloat)Xrot, 1., 0., 0.);
+    modelview = glm::rotate(modelview, D2R*Yrot, glm::vec3(0., 1., 0.));
+    modelview = glm::rotate(modelview, D2R*Xrot, glm::vec3(1., 0., 0.));
+
+    //glRotatef((GLfloat)Yrot, 0., 1., 0.);
+    //glRotatef((GLfloat)Xrot, 1., 0., 0.);
 
 
     // uniformly scale the scene:
 
     if (Scale < MINSCALE)
         Scale = MINSCALE;
-    glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
+    //glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
+    modelview = glm::scale(modelview, glm::vec3(Scale, Scale, Scale));
 
+    glMultMatrixf(glm::value_ptr(modelview));
 
     // set the fog parameters:
 
@@ -427,6 +447,14 @@ Display()
     glEnable(GL_NORMALIZE);
 
     float theta = (2.f * (float)M_PI) * Time;
+    glm::mat4 model(1.f);
+    glm::vec3 L0_translate = glm::vec3(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
+    glm::vec3 L1_translate = glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f);
+    glm::vec3 L2_translate = glm::vec3(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
+
+    glm::mat4 L0_td = glm::translate(model, L0_translate);
+    glm::mat4 L1_td = glm::translate(model, L1_translate);
+    glm::mat4 L2_td = glm::translate(model, L2_translate);
 
     // draw the current object:
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, MulArray3(.3f, White));
@@ -441,7 +469,8 @@ Display()
     glDisable(GL_LIGHTING);
     glColor3fv(White);
     glPushMatrix();
-    glTranslatef(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
+    glMultMatrixf(glm::value_ptr(L0_td));
+    //glTranslatef(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
     glCallList(SphereList);
     glPopMatrix();
     glEnable(GL_LIGHTING);
@@ -453,7 +482,8 @@ Display()
     glDisable(GL_LIGHTING);
     glColor3f(1., 0., 0.);
     glPushMatrix();
-    glTranslatef(4.9f * (float)sin(theta), 8.f, -3.f);
+    glMultMatrixf(glm::value_ptr(L1_td));
+    //glTranslatef(4.9f * (float)sin(theta), 8.f, -3.f);
     glCallList(SphereList);
     glPopMatrix();
     glEnable(GL_LIGHTING);
@@ -467,7 +497,8 @@ Display()
     glDisable(GL_LIGHTING);
     glColor3f(0., 1., 1.);
     glPushMatrix();
-    glTranslatef(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
+    glMultMatrixf(glm::value_ptr(L2_td));
+    //glTranslatef(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
     glCallList(SphereList);
     glPopMatrix();
     glEnable(GL_LIGHTING);
@@ -488,23 +519,42 @@ Display()
     else
         glDisable(GL_LIGHT2);
 
+    glm::mat4 torus(1.);
+
+    torus = glm::rotate(torus, D2R * (88.9999f * (float)sin(theta / 2)), glm::vec3(0.f, 1.f, 0.f));
+    torus = glm::translate(torus, glm::vec3(-11.5f, 4.f, -9.f));
+    torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
+
     glPushMatrix();
     SetMaterial(0.5f, 1.f, 0.1f, 2.f);
-    glRotatef(88.9999f * (float)sin(theta / 2), 0.f, 1.f, 0.f);
-    glTranslatef(-11.5f, 4.f, -9.f);
-    glRotatef(90.f, 1.f, 0.f, 0.f);
+    glMultMatrixf(glm::value_ptr(torus));
+    //glRotatef(88.9999f * (float)sin(theta / 2), 0.f, 1.f, 0.f);
+    //glTranslatef(-11.5f, 4.f, -9.f);
+    //glRotatef(90.f, 1.f, 0.f, 0.f);
     glShadeModel(GL_FLAT);
     glutSolidTorus(2., 4., 70, 70);
     glPopMatrix();
 
+    glm::mat4 objfile(1.f);
+
+    objfile = glm::rotate(objfile, D2R*90.f, glm::vec3(0.f, 0.f, 1.f));
+    objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
+    objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
+
     glPushMatrix();
     SetMaterial(0.6f, 0.f, 0.32f, 32.f);
-    glRotatef(90.f, 0.f, 0.f, 1.f);
+    glMultMatrixf(glm::value_ptr(objfile));
+    /*glRotatef(90.f, 0.f, 0.f, 1.f);
     glTranslatef(0.f, 0.f, -9.f);
-    glScalef(0.1f, 0.1f, 0.1f);
+    glScalef(0.1f, 0.1f, 0.1f);*/
     glShadeModel(GL_SMOOTH);
     glCallList(ObjFileList);
     glPopMatrix();
+
+    glm::mat4 globe(1.f);
+
+    globe = glm::translate(globe, glm::vec3(-1.f, 5.f, -3.f));
+    globe = glm::rotate(globe, D2R * 90.f, glm::vec3(1.f, 0.f, 0.f));
 
     glEnable(GL_TEXTURE_2D);
 
@@ -513,8 +563,9 @@ Display()
 
     glPushMatrix();
     SetMaterial(0.f, 0.f, 0.f, 0.9f);
-    glTranslatef(-1.f, 5.f, -3.f);
-    glRotatef(90.f, 1.f, 0.f, 0.f);
+    glMultMatrixf(glm::value_ptr(globe));
+    /*glTranslatef(-1.f, 5.f, -3.f);
+    glRotatef(90.f, 1.f, 0.f, 0.f);*/
     glShadeModel(GL_SMOOTH);
     OsuSphere(1.f, 360, 55);
     glPopMatrix();
@@ -943,169 +994,6 @@ DrawPoint(struct point* p)
     glNormal3fv(&p->nx);
     glTexCoord2fv(&p->s);
     glVertex3fv(&p->x);
-}
-
-
-void
-OsuCone(float radBot, float radTop, float height, int slices, int stacks)
-{
-    // gracefully handle degenerate case:
-
-    if (radBot == 0. && radTop == 0.)
-    {
-        glBegin(GL_LINES);
-        glNormal3f(0., -1., 0.);
-        glTexCoord2f(0., 0.);
-        glVertex3f(0., 0., 0.);
-
-        glNormal3f(0., 1., 0.);
-        glTexCoord2f(0., 1.);
-        glVertex3f(0., height, 0.);
-        glEnd();
-        return;
-    }
-
-
-    radBot = (float)fabs(radBot);
-    radTop = (float)fabs(radTop);
-    slices = abs(slices);
-    stacks = abs(stacks);
-    //fprintf( stderr, "%8.3f, %8.3f, %8.3f,  %3d, %3d\n", radBot, radTop, height, slices, stacks );
-
-    NumLngs = slices;
-    if (NumLngs < 3)
-        NumLngs = 3;
-
-    NumLats = stacks;
-    if (NumLats < 3)
-        NumLats = 3;
-
-    // allocate the point data structure:
-
-    Pts = new struct point[NumLngs * NumLats];
-
-    // fill the Pts structure:
-
-    for (int ilat = 0; ilat < NumLats; ilat++)
-    {
-        float t = (float)ilat / (float)(NumLats - 1);
-        float y = t * height;
-        float rad = t * radTop + (1.f - t) * radBot;
-        for (int ilng = 0; ilng < NumLngs; ilng++)
-        {
-            float lng = (float)(-M_PI + 2. * M_PI * (float)ilng / (float)(NumLngs - 1));
-            float x = cosf(lng);
-            float z = -sinf(lng);
-            struct point* p = PtsPointer(ilat, ilng);
-            p->x = rad * x;
-            p->y = y;
-            p->z = rad * z;
-            p->nx = height * x;
-            p->ny = radBot - radTop;
-            p->nz = height * z;
-            Unit(&p->nx, &p->nx);
-            p->s = (float)ilng / (float)(NumLngs - 1);
-            p->t = (float)ilat / (float)(NumLats - 1);
-
-
-        }
-
-    }
-
-
-    // draw the sides:
-
-    for (int ilat = 0; ilat < NumLats - 1; ilat++)
-    {
-        glBegin(GL_TRIANGLE_STRIP);
-
-        struct point* p;
-        p = PtsPointer(ilat, 0);
-        DrawPoint(p);
-
-        p = PtsPointer(ilat + 1, 0);
-        DrawPoint(p);
-
-        for (int ilng = 1; ilng < NumLngs; ilng++)
-        {
-            p = PtsPointer(ilat, ilng);
-            DrawPoint(p);
-
-            p = PtsPointer(ilat + 1, ilng);
-            DrawPoint(p);
-        }
-
-        glEnd();
-    }
-
-    // draw the bottom circle:
-
-    if (radBot != 0.)
-    {
-        struct point* bot = new struct point[NumLngs];
-        for (int ilng = 0; ilng < NumLngs; ilng++)
-        {
-            bot[ilng].x = 0.;
-            bot[ilng].y = 0.;
-            bot[ilng].z = 0.;
-            bot[ilng].nx = 0.;
-            bot[ilng].ny = -1.;
-            bot[ilng].nz = 0.;
-            bot[ilng].s = (float)ilng / (float)(NumLngs - 1);
-            bot[ilng].t = 0.;
-        }
-
-        glBegin(GL_TRIANGLES);
-        for (int ilng = NumLngs - 1; ilng >= 0; ilng--)
-        {
-            struct point* p;
-            p = PtsPointer(0, ilng + 1);
-            DrawPoint(p);
-
-            p = PtsPointer(0, ilng);
-            DrawPoint(p);
-
-            DrawPoint(&bot[ilng]);
-        }
-        glEnd();
-        delete[] bot;
-    }
-
-
-    // draw the top circle:
-
-    if (radTop != 0.)
-    {
-        struct point* top = new struct point[NumLngs];
-        for (int ilng = 0; ilng < NumLngs; ilng++)
-        {
-            top[ilng].x = 0.;
-            top[ilng].y = height;
-            top[ilng].z = 0.;
-            top[ilng].nx = 0.;
-            top[ilng].ny = 1.;
-            top[ilng].nz = 0.;
-            top[ilng].s = (float)ilng / (float)(NumLngs - 1);
-            top[ilng].t = 1.;
-        }
-
-        glBegin(GL_TRIANGLES);
-        for (int ilng = 0; ilng < NumLngs - 1; ilng++)
-        {
-            struct point* p;
-            p = PtsPointer(NumLats - 1, ilng);
-            DrawPoint(p);
-
-            p = PtsPointer(NumLats - 1, ilng + 1);
-            DrawPoint(p);
-
-            DrawPoint(&top[ilng]);
-        }
-        glEnd();
-        delete[] top;
-    }
-
-    delete[] Pts;
 }
 
 void
