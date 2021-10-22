@@ -335,12 +335,16 @@ LoadObjFile(char* name)
 	glEnd();
 	fclose(fp);
 
+#ifdef _DEBUG
+
 	fprintf(stderr, "Obj file range: [%8.3f,%8.3f,%8.3f] -> [%8.3f,%8.3f,%8.3f]\n",
 		xmin, ymin, zmin, xmax, ymax, zmax);
 	fprintf(stderr, "Obj file center = (%8.3f,%8.3f,%8.3f)\n",
 		(xmin + xmax) / 2., (ymin + ymax) / 2., (zmin + zmax) / 2.);
 	fprintf(stderr, "Obj file  span = (%8.3f,%8.3f,%8.3f)\n",
 		xmax - xmin, ymax - ymin, zmax - zmin);
+
+#endif // DEBUG
 
 	return 0;
 }

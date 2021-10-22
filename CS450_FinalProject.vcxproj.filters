@@ -23,31 +23,25 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="glew.h">
+    <ClInclude Include="includes\freeglut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut.h">
+    <ClInclude Include="includes\freeglut_ext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="loadobjfile.h">
+    <ClInclude Include="includes\freeglut_std.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="eglew.h">
+    <ClInclude Include="includes\glew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="freeglut.h">
+    <ClInclude Include="includes\glut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="freeglut_ext.h">
+    <ClInclude Include="includes\loadobjfile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="freeglut_std.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="glxew.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="wglew.h">
+    <ClInclude Include="includes\stb_image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

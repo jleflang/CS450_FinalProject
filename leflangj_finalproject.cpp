@@ -20,6 +20,14 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_BMP
+#define STBI_NO_PSD
+#define STBI_NO_GIF
+#define STBI_NO_PIC
+#define STBI_NO_PNM
+#include "stb_image.h"
+
 #include "loadobjfile.h"
 
 
@@ -934,6 +942,7 @@ InitGraphics()
     // init glew (a window must be open to do this):
 
     GLenum err = glewInit();
+#ifdef _DEBUG
     if (err != GLEW_OK)
     {
         fprintf(stderr, "glewInit Error\n");
@@ -941,11 +950,12 @@ InitGraphics()
     else
         fprintf(stderr, "GLEW initialized OK\n");
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
+#endif // DEBUG
 
     // Init the Texture
     // Texture BMP found at:
     // http://www.cbliss.com/inventor/Textures/index.htm
-    Texture = BmpToTexture((char*)"worldtex.bmp", &width, &height);
+    Texture = BmpToTexture((char *)"assets\\worldtex.bmp", &width, &height);
 
     glPixelStoref(GL_UNPACK_ALIGNMENT, 1);
     glGenTextures(1, &Tex0);
@@ -1109,7 +1119,7 @@ InitLists()
 
     ObjFileList = glGenLists(1);
     glNewList(ObjFileList, GL_COMPILE);
-    LoadObjFile((char*)"minicooper.obj");
+    LoadObjFile((char*)"assets\\minicooper.obj");
     glEndList();
 
     // create the axes:
