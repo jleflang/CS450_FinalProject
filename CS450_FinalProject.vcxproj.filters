@@ -21,6 +21,12 @@
     <ClCompile Include="loadobjfile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="glslprogram.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vertexbufferobject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\freeglut.h">
@@ -42,6 +48,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="includes\stb_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="includes\glslprogram.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="includes\vertexbufferobject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

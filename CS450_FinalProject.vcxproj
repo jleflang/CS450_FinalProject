@@ -77,6 +77,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>lib\;$(LibraryPath)</LibraryPath>
+    <IntDir>$(Configuration)\tmp\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -121,6 +122,11 @@
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
       <IgnoreSpecificDefaultLibraries>libcmt.lib;libcmtd.lib;msvcrtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y $(SolutionDir)freeglut.dll $(OutputPath)
+xcopy /y /s /e $(SolutionDir)assets\ $(OutputPath)assets\
+xcopy /y /s /e $(SolutionDir)shaders\ $(OutputPath)shaders\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -152,17 +158,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="glslprogram.cpp" />
     <ClCompile Include="leflangj_finalproject.cpp" />
     <ClCompile Include="loadobjfile.cpp" />
+    <ClCompile Include="vertexbufferobject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\freeglut.h" />
     <ClInclude Include="includes\freeglut_ext.h" />
     <ClInclude Include="includes\freeglut_std.h" />
     <ClInclude Include="includes\glew.h" />
+    <ClInclude Include="includes\glslprogram.h" />
     <ClInclude Include="includes\glut.h" />
     <ClInclude Include="includes\loadobjfile.h" />
     <ClInclude Include="includes\stb_image.h" />
+    <ClInclude Include="includes\vertexbufferobject.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -28,7 +28,10 @@
 #define STBI_NO_PNM
 #include "stb_image.h"
 
+// Provided Code
+#include "glslprogram.h"
 #include "loadobjfile.h"
+#include "vertexbufferobject.h"
 
 
 //	This code is mostly taken from the sample OpenGL / GLUT program
@@ -195,6 +198,8 @@ int		DebugOn;				// != 0 means to print debugging info
 int		DepthCueOn;				// != 0 means to use intensity depth cueing
 int		DepthBufferOn;			// != 0 means to use the z-buffer
 int		DepthFightingOn;		// != 0 means to force the creation of z-fighting
+GLuint  envMapTexture;
+GLuint  envCube;
 GLuint  Tex0;
 GLuint	SphereList;				// object display list
 GLuint  ObjFileList;
@@ -209,11 +214,56 @@ float	Xrot, Yrot;				// rotation angles in degrees
 
 bool	Frozen;
 
+int    envW, envH, nrComp;
+
 unsigned char* Texture;
 int           width, height;
 
 bool Light0On, Light1On, Light2On;
 
+GLSLProgram *Environment;
+GLSLProgram *Back;
+GLSLProgram *Uber;
+
+GLuint framebuf;
+GLuint renderbuf;
+
+VertexBufferObject* envCubeObj;
+
+GLuint cubeVAO = 0;
+GLuint cubeVBO = 0;
+
+GLfloat CubeVertices[][3] =
+{
+    { -1., -1., -1. },
+    {  1., -1., -1. },
+    { -1.,  1., -1. },
+    {  1.,  1., -1. },
+    { -1., -1.,  1. },
+    {  1., -1.,  1. },
+    { -1.,  1.,  1. },
+    {  1.,  1.,  1. }
+};
+
+GLuint CubeIndices[][4] =
+{
+    { 0, 2, 3, 1 },
+    { 4, 5, 7, 6 },
+    { 1, 3, 7, 5 },
+    { 0, 4, 6, 2 },
+    { 2, 6, 7, 3 },
+    { 0, 1, 5, 4 }
+};
+
+GLfloat CubeTextures[][2] =
+{
+    { 1., 0. },
+    {-1., 0. },
+    { 0., 1. },
+    { 0.,-1. },
+    { 1., 1. },
+    {-1.,-1. }
+};
 
 // function prototypes:
 
@@ -342,23 +392,16 @@ Display()
         fprintf(stderr, "Display\n");
     }
 
-
     // set which window we want to do the graphics into:
 
     glutSetWindow(MainWindow);
-
 
     // erase the background:
 
     glDrawBuffer(GL_BACK);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     glEnable(GL_DEPTH_TEST);
-#ifdef DEMO_DEPTH_BUFFER
-    if (DepthBufferOn == 0)
-        glDisable(GL_DEPTH_TEST);
-#endif
-
+    glEnable(GL_NORMALIZE);
     glShadeModel(GL_SMOOTH);
 
 
@@ -384,10 +427,7 @@ Display()
     if (WhichProjection == ORTHO)
         projection = glm::ortho(-3., 3., -3., 3., 0.1, 1000.);
     else
-        projection = glm::perspective(D2R*90., 1., 0.1, 1000.);
-
-    glMultMatrixf(glm::value_ptr(projection));
-
+        projection = glm::perspective(glm::radians(90.), 1., 0.1, 1000.);
 
     // place the objects into the scene:
 
@@ -397,7 +437,7 @@ Display()
     // set the eye position, look-at position, and up-vector:
 
     glm::mat4 modelview;
-    glm::vec3 eye(16., -3.7, 11.2);
+    glm::vec3 eye(0., 0, 11.);
     glm::vec3 look(0., 0., 0.);
     glm::vec3 up(0., 1., 0.);
 
@@ -408,8 +448,8 @@ Display()
 
     // rotate the scene:
 
-    modelview = glm::rotate(modelview, D2R*Yrot, glm::vec3(0., 1., 0.));
-    modelview = glm::rotate(modelview, D2R*Xrot, glm::vec3(1., 0., 0.));
+    modelview = glm::rotate(modelview, glm::radians(Yrot), glm::vec3(0., 1., 0.));
+    modelview = glm::rotate(modelview, glm::radians(Xrot), glm::vec3(1., 0., 0.));
 
     //glRotatef((GLfloat)Yrot, 0., 1., 0.);
     //glRotatef((GLfloat)Xrot, 1., 0., 0.);
@@ -421,8 +461,6 @@ Display()
         Scale = MINSCALE;
     //glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
     modelview = glm::scale(modelview, glm::vec3(Scale, Scale, Scale));
-
-    glMultMatrixf(glm::value_ptr(modelview));
 
     // set the fog parameters:
 
@@ -440,77 +478,106 @@ Display()
         glDisable(GL_FOG);
     }
 
+    Uber->Use();
+    Uber->SetUniformVariable((char*)"uProj", projection);
+    Uber->SetUniformVariable((char*)"uView", modelview);
+    Uber->SetUniformVariable((char*)"camPos", eye);
+    Uber->SetUniformVariable((char*)"albedo", 0.15f, 0.15f, 0.85f);
+    Uber->SetUniformVariable((char*)"ao", 1.f);
+
+    Back->Use();
+    Back->SetUniformVariable((char*)"uProj", projection);
 
     // possibly draw the axes:
 
     if (AxesOn != 0)
     {
-        glColor3fv(&Colors[WhichColor][0]);
+        glm::mat4 axis(1.f);
+        Uber->SetUniformVariable((char*)"uModel", axis);
+        //glColor3fv(&Colors[WhichColor][0]);
         glCallList(AxesList);
     }
 
-
-    // since we are using glScalef( ), be sure normals get unitized:
-
-    glEnable(GL_NORMALIZE);
-
     float theta = (2.f * (float)M_PI) * Time;
     glm::mat4 model(1.f);
-    glm::vec3 L0_translate = glm::vec3(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
-    glm::vec3 L1_translate = glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f);
-    glm::vec3 L2_translate = glm::vec3(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
 
-    glm::mat4 L0_td = glm::translate(model, L0_translate);
-    glm::mat4 L1_td = glm::translate(model, L1_translate);
-    glm::mat4 L2_td = glm::translate(model, L2_translate);
+    glm::vec3 light_translate[] = {
+        glm::vec3(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI)),
+        glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f),
+        glm::vec3(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f),
+        glm::vec3(3.f * (float)sin(2. * M_PI), 3.f, 3.f * (float)cos(2 * M_PI)),
+    };
+
+    glm::vec3 light_color[] = {
+        glm::vec3(100.,100.,100.),
+        glm::vec3(100.,0.,0.),
+        glm::vec3(0.,100.,100.),
+        glm::vec3(100.,0.,100.),
+    };
+
+    glm::mat4 L0_td = glm::translate(model, light_translate[0]);
+    glm::mat4 L1_td = glm::translate(model, light_translate[1]);
+    glm::mat4 L2_td = glm::translate(model, light_translate[2]);
 
     // draw the current object:
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, MulArray3(.3f, White));
-    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
-    glEnable(GL_LIGHTING);
+    //glLightModelfv(GL_LIGHT_MODEL_AMBIENT, MulArray3(.3f, White));
+    //glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+    //glEnable(GL_LIGHTING);
 
-    glPushMatrix();
-    SetSpotLight(GL_LIGHT0, 3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2. * M_PI),
+    //glPushMatrix();
+    Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
+    Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
+    glDisable(GL_LIGHTING);
+    /*SetSpotLight(GL_LIGHT0, 3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2. * M_PI),
         -1., -0.5, -1.,
-        1., 1., 1.);
-    glEnable(GL_LIGHT0);
-    glDisable(GL_LIGHTING);
-    glColor3fv(White);
+        1., 1., 1.);*/
+    //glEnable(GL_LIGHT0);
+    /*glColor3fv(White);
     glPushMatrix();
-    glMultMatrixf(glm::value_ptr(L0_td));
+    glMultMatrixf(glm::value_ptr(L0_td));*/
     //glTranslatef(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
+    //Uber->SetUniformVariable((char*)"albedo", light_color[0]);
+    Uber->SetUniformVariable((char*)"uModel", L0_td);
     glCallList(SphereList);
-    glPopMatrix();
-    glEnable(GL_LIGHTING);
-    glPopMatrix();
+    //glPopMatrix();
+    //glEnable(GL_LIGHTING);
+    //glPopMatrix();
 
-    glPushMatrix();
-    SetPointLight(GL_LIGHT1, 4.9f * (float)sin(theta), 8.f, -3.f, 1.f, 0.f, 0.f);
-    glEnable(GL_LIGHT1);
-    glDisable(GL_LIGHTING);
-    glColor3f(1., 0., 0.);
-    glPushMatrix();
-    glMultMatrixf(glm::value_ptr(L1_td));
+    //glPushMatrix();
+    Uber->SetUniformVariable((char*)"lightPositions[1]", light_translate[1]);
+    Uber->SetUniformVariable((char*)"lightColors[1]", light_color[1]);
+    //SetPointLight(GL_LIGHT1, 4.9f * (float)sin(theta), 8.f, -3.f, 1.f, 0.f, 0.f);
+    //glEnable(GL_LIGHT1);
+    //glDisable(GL_LIGHTING);
+    //glColor3f(1., 0., 0.);
+    //glPushMatrix();
+    //glMultMatrixf(glm::value_ptr(L1_td));
     //glTranslatef(4.9f * (float)sin(theta), 8.f, -3.f);
+    //Uber->SetUniformVariable((char*)"albedo", light_color[1]);
+    Uber->SetUniformVariable((char*)"uModel", L1_td);
     glCallList(SphereList);
-    glPopMatrix();
-    glEnable(GL_LIGHTING);
-    glPopMatrix();
+    //glPopMatrix();
+    //glEnable(GL_LIGHTING);
+    //glPopMatrix();
 
-    glPushMatrix();
-    SetSpotLight(GL_LIGHT2, -14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f,
+    //glPushMatrix();
+    Uber->SetUniformVariable((char*)"lightPositions[3]", light_translate[2]);
+    Uber->SetUniformVariable((char*)"lightColors[3]", light_color[2]);
+    /*SetSpotLight(GL_LIGHT2, -14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f,
         (float)cos(theta), (float)sin(theta), -0.4f,
         0.f, 1.f, 1.f);
-    glEnable(GL_LIGHT2);
-    glDisable(GL_LIGHTING);
-    glColor3f(0., 1., 1.);
+    glEnable(GL_LIGHT2);*/
+    //glDisable(GL_LIGHTING);
+    /*glColor3f(0., 1., 1.);
     glPushMatrix();
-    glMultMatrixf(glm::value_ptr(L2_td));
+    glMultMatrixf(glm::value_ptr(L2_td));*/
     //glTranslatef(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
+    //Uber->SetUniformVariable((char*)"albedo", light_color[2]);
+    Uber->SetUniformVariable((char*)"uModel", L2_td);
     glCallList(SphereList);
-    glPopMatrix();
+    //glPopMatrix();
     glEnable(GL_LIGHTING);
-    glPopMatrix();
+    //glPopMatrix();
 
     if (Light0On)
         glEnable(GL_LIGHT0);
@@ -529,58 +596,79 @@ Display()
 
     glm::mat4 torus(1.);
 
-    torus = glm::rotate(torus, D2R * (88.9999f * (float)sin(theta / 2)), glm::vec3(0.f, 1.f, 0.f));
+    torus = glm::rotate(torus, D2R * (88.9999f * (float)sin(theta / 2)), glm::vec3(1.f, 0.f, 0.f));
     torus = glm::translate(torus, glm::vec3(-11.5f, 4.f, -9.f));
-    torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
+    //torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
 
-    glPushMatrix();
+    //glPushMatrix();
     SetMaterial(0.5f, 1.f, 0.1f, 2.f);
-    glMultMatrixf(glm::value_ptr(torus));
+    Uber->SetUniformVariable((char*)"metallic", 0.f);
+    Uber->SetUniformVariable((char*)"roughness", 0.f);
+    Uber->SetUniformVariable((char*)"uModel", torus);
+    //glMultMatrixf(glm::value_ptr(torus));
     //glRotatef(88.9999f * (float)sin(theta / 2), 0.f, 1.f, 0.f);
     //glTranslatef(-11.5f, 4.f, -9.f);
     //glRotatef(90.f, 1.f, 0.f, 0.f);
-    glShadeModel(GL_FLAT);
+    //glShadeModel(GL_FLAT);
     glutSolidTorus(2., 4., 70, 70);
-    glPopMatrix();
+    //glPopMatrix();
 
     glm::mat4 objfile(1.f);
 
-    objfile = glm::rotate(objfile, D2R*90.f, glm::vec3(0.f, 0.f, 1.f));
+    objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+    objfile = glm::rotate(objfile, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
     objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
     objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
 
-    glPushMatrix();
+    //glPushMatrix();
     SetMaterial(0.6f, 0.f, 0.32f, 32.f);
-    glMultMatrixf(glm::value_ptr(objfile));
+    Uber->SetUniformVariable((char*)"metallic", 32.f);
+    Uber->SetUniformVariable((char*)"roughness", 0.f);
+    Uber->SetUniformVariable((char*)"uModel", objfile);
+    //glMultMatrixf(glm::value_ptr(objfile));
     /*glRotatef(90.f, 0.f, 0.f, 1.f);
     glTranslatef(0.f, 0.f, -9.f);
     glScalef(0.1f, 0.1f, 0.1f);*/
-    glShadeModel(GL_SMOOTH);
+    //glShadeModel(GL_SMOOTH);
     glCallList(ObjFileList);
-    glPopMatrix();
+    //glPopMatrix();
 
     glm::mat4 globe(1.f);
 
     globe = glm::translate(globe, glm::vec3(-1.f, 5.f, -3.f));
-    globe = glm::rotate(globe, D2R * 90.f, glm::vec3(1.f, 0.f, 0.f));
+    //globe = glm::rotate(globe, D2R * 90.f, glm::vec3(1.f, 0.f, 0.f));
 
-    glEnable(GL_TEXTURE_2D);
+    //glEnable(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, Tex0);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-    glPushMatrix();
-    SetMaterial(0.f, 0.f, 0.f, 0.9f);
-    glMultMatrixf(glm::value_ptr(globe));
+    //glPushMatrix();
+    SetMaterial(0.f, 0.f, 0.f, 0.45f);
+    Uber->SetUniformVariable((char*)"metallic", 0.45f);
+    Uber->SetUniformVariable((char*)"roughness", 0.f);
+    Uber->SetUniformVariable((char*)"uModel", globe);
+    //glMultMatrixf(glm::value_ptr(globe));
     /*glTranslatef(-1.f, 5.f, -3.f);
     glRotatef(90.f, 1.f, 0.f, 0.f);*/
-    glShadeModel(GL_SMOOTH);
+    //glShadeModel(GL_SMOOTH);
     OsuSphere(1.f, 360, 55);
-    glPopMatrix();
+    //glPopMatrix();
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-    glDisable(GL_TEXTURE_2D);
+    //glDisable(GL_TEXTURE_2D);
 
-    glDisable(GL_LIGHTING);
+    
+    Back->SetUniformVariable((char*)"uView", modelview);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
+    envCubeObj->Draw();
+
+    Back->Use(0);
+
+    Uber->Use(0);
+
+    //glDisable(GL_LIGHTING);
 
     // #ifdef DEMO_Z_FIGHTING
     //     if( DepthFightingOn != 0 )
@@ -952,6 +1040,78 @@ InitGraphics()
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif // DEBUG
 
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    envCubeObj = new VertexBufferObject();
+    envCubeObj->CollapseCommonVertices(false);
+    envCubeObj->glBegin(GL_QUADS);
+    for (int i = 0; i < 6; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            GLuint k = CubeIndices[i][j];
+            envCubeObj->glVertex3fv(CubeVertices[k]);
+            envCubeObj->glTexCoord2fv(CubeTextures[k]);
+        }
+    }
+    envCubeObj->glEnd();
+
+#ifndef _DEBUG
+    envCubeObj->SetVerbose(false);
+#else
+    envCubeObj->SetVerbose(true);
+#endif // !_DEBUG
+
+    Back = new GLSLProgram();
+
+    bool valid = Back->Create((char*)"shaders\\back.vert", (char*)"shaders\\back.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Back->SetVerbose(false);
+
+    Environment = new GLSLProgram();
+
+    valid = Environment->Create((char*)"shaders\\env.vert", (char*)"shaders\\env.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Environment->SetVerbose(false);
+
+    Uber = new GLSLProgram();
+
+    valid = Uber->Create((char*)"shaders\\objshader.vert", (char*)"shaders\\objshader.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Uber->SetVerbose(false);
+
     // Init the Texture
     // Texture BMP found at:
     // http://www.cbliss.com/inventor/Textures/index.htm
@@ -967,6 +1127,75 @@ InitGraphics()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, Texture);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers(1, &framebuf);
+    glGenRenderbuffers(1, &renderbuf);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
+    
+    // Init the Env HDR
+    stbi_set_flip_vertically_on_load(true);
+    float* envImage = stbi_loadf((char*)"assets\\shanghai_riverside_2k.hdr", &envW, &envH, &nrComp, 0);
+    if (envImage)
+    {
+        glGenTextures(1, &envMapTexture);
+        glBindTexture(GL_TEXTURE_2D, envMapTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, envW, envH, 0, GL_RGB, GL_FLOAT, envImage);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+        stbi_image_free(envImage);
+    }
+
+    glGenTextures(1, &envCube);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+    glm::mat4 captureViews[] =
+    {
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+    };
+
+    Environment->Use();
+    Environment->SetUniformVariable((char*)"uenvMap", 0);
+    Environment->SetUniformVariable((char*)"uProj", captureProjection);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, envMapTexture);
+    glViewport(0, 0, 512, 512);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    for (int i = 0; i < 6; ++i)
+    {
+        Environment->SetUniformVariable((char*)"uView", captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCube, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        envCubeObj->Draw();
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 }
 
@@ -1114,7 +1343,7 @@ InitLists()
 
     SphereList = glGenLists(1);
     glNewList(SphereList, GL_COMPILE);
-    OsuSphere(1., 360, 48);
+    OsuSphere(.5, 360, 48);
     glEndList();
 
     ObjFileList = glGenLists(1);
@@ -1307,9 +1536,7 @@ Reset()
     ShadowsOn = 0;
     WhichColor = WHITE;
     WhichProjection = PERSP;
-    //Xrot = Yrot = 0.;
-    Xrot = -90.;
-    Yrot = 30.;
+    Xrot = Yrot = 0.;
     Light0On = Light1On = Light2On = true;
     Frozen = false;
 }
