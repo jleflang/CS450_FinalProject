@@ -34,7 +34,7 @@ VertexBufferObject::AddVertex( GLfloat x, GLfloat y, GLfloat z )
 	if( verbose )
 		fprintf( stderr, "Point %8.3f,%8.3f,%8.3f is new\n", x, y, z );
 
-	struct Point pt = { x, y, z,  c_nx, c_ny, c_nz,  c_r, c_g, c_b,  c_s, c_t };
+	struct Point pt = { x, y, z,  c_nx, c_ny, c_nz,   c_s, c_t };
 	PointVec.push_back( pt );
 	int ptindex = (int)PointVec.size( ) - 1;
 	if( collapseCommonVertices )
@@ -63,10 +63,11 @@ VertexBufferObject::Draw( )
 		return;
 	}
 
-
 	if( isFirstDraw )
 	{
+		glGenVertexArrays(1, &abuffer);
 		glGenBuffers( 1, &pbuffer );
+		glBindVertexArray(abuffer);
 		glBindBuffer( GL_ARRAY_BUFFER, pbuffer );
 		glBufferData( GL_ARRAY_BUFFER, numPoints * sizeof(struct Point), NULL, GL_STATIC_DRAW );
 		parray = (struct Point *) glMapBuffer( GL_ARRAY_BUFFER, GL_WRITE_ONLY );
@@ -88,11 +89,36 @@ VertexBufferObject::Draw( )
 		//	parray[i].t = PointVec[i].t;
 		// }
 
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, THREE_VALUES, GL_FLOAT, GL_FALSE, sizeof(struct Point), (GLvoid*)ELEMENT_OFFSET(&parray[0].x, &parray[0].x));
+
+		//glEnableClientState( GL_VERTEX_ARRAY );
+		if (hasNormals)
+		{
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, THREE_VALUES, GL_FLOAT, GL_FALSE, sizeof(struct Point), (GLvoid*)ELEMENT_OFFSET(&parray[0].x, &parray[0].nx));
+			// the leading THREE_VALUES is implied
+	//glEnableClientState( GL_NORMAL_ARRAY );
+		}
+
+		/*if( hasColors )
+		{
+			glColorPointer(    THREE_VALUES, GL_FLOAT, sizeof(struct Point), ELEMENT_OFFSET( &parray[0].x, &parray[0].r ) );
+			glEnableClientState( GL_COLOR_ARRAY );
+		}*/
+
+		if (hasTexCoords)
+		{
+			glEnableVertexAttribArray(2);
+			glVertexAttribPointer(2, TWO_VALUES, GL_FLOAT, GL_FALSE, sizeof(struct Point), (GLvoid*)ELEMENT_OFFSET(&parray[0].x, &parray[0].s));
+			//glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+		}
+
 
 		glUnmapBuffer( GL_ARRAY_BUFFER );
 		parray = NULL;
 
-		glGenBuffers( 1, &ebuffer );
+		/*glGenBuffers( 1, &ebuffer );
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebuffer );
 		glBufferData( GL_ELEMENT_ARRAY_BUFFER, numElements * sizeof(GLuint), NULL, GL_STATIC_DRAW );
 		earray = (GLuint *) glMapBuffer( GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY );
@@ -101,54 +127,34 @@ VertexBufferObject::Draw( )
 			earray[i] = ElementVec[i];
 		}
 		glUnmapBuffer( GL_ELEMENT_ARRAY_BUFFER );
-		earray = NULL;
+		earray = NULL;*/
 
 		isFirstDraw = false;
 	}
 
-	glBindBuffer( GL_ARRAY_BUFFER, pbuffer );
+	glBindVertexArray( abuffer );
 	if( collapseCommonVertices )
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebuffer );
 
-	glVertexPointer(   THREE_VALUES, GL_FLOAT, sizeof(struct Point), (GLvoid *)ELEMENT_OFFSET( &parray[0].x, &parray[0].x ) );
-
-	glEnableClientState( GL_VERTEX_ARRAY );
-	if( hasNormals )	
-	{
-		glNormalPointer(   GL_FLOAT, sizeof(struct Point),               ELEMENT_OFFSET( &parray[0].x, &parray[0].nx ) );
-				// the leading THREE_VALUES is implied
-		glEnableClientState( GL_NORMAL_ARRAY );
-	}
-
-	if( hasColors )
-	{
-		glColorPointer(    THREE_VALUES, GL_FLOAT, sizeof(struct Point), ELEMENT_OFFSET( &parray[0].x, &parray[0].r ) );
-		glEnableClientState( GL_COLOR_ARRAY );
-	}
-
-	if( hasTexCoords )
-	{
-		glTexCoordPointer( TWO_VALUES,   GL_FLOAT, sizeof(struct Point), ELEMENT_OFFSET( &parray[0].x, &parray[0].s ) );
-		glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	}
+	
 
 
-	if( collapseCommonVertices || restartFound )
+	/*if( collapseCommonVertices || restartFound )
 	{
 		glDrawElements( topology, numElements, GL_UNSIGNED_INT, BUFFER_OFFSET( 0 ) );
 	}
-	else
-	{
+	else*/
+	//{
 		glDrawArrays( topology, 0, numPoints );
-	}
+	//}
 
-	glBindBuffer( GL_ARRAY_BUFFER,         0 );
-	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
+	glBindVertexArray( 0 );
+	//glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
 
-	glDisableClientState( GL_VERTEX_ARRAY );
-	glDisableClientState( GL_NORMAL_ARRAY );
-	glDisableClientState( GL_COLOR_ARRAY );
-	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	//glDisableClientState( GL_VERTEX_ARRAY );
+	//glDisableClientState( GL_NORMAL_ARRAY );
+	//glDisableClientState( GL_COLOR_ARRAY );
+	//glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 }
 
 
@@ -198,19 +204,19 @@ VertexBufferObject::glNormal3fv( GLfloat *nxyz )
 }
 
 
-void
-VertexBufferObject::glColor3f( GLfloat r, GLfloat g, GLfloat b )
-{
-	hasColors = true;
-	c_r = r;	c_g = g;	c_b = b;
-}
-
-
-void
-VertexBufferObject::glColor3fv( GLfloat *rgb )
-{
-	glColor3f( rgb[0], rgb[1], rgb[2] );
-}
+//void
+//VertexBufferObject::glColor3f( GLfloat r, GLfloat g, GLfloat b )
+//{
+//	hasColors = true;
+//	c_r = r;	c_g = g;	c_b = b;
+//}
+//
+//
+//void
+//VertexBufferObject::glColor3fv( GLfloat *rgb )
+//{
+//	glColor3f( rgb[0], rgb[1], rgb[2] );
+//}
 
 
 void
@@ -257,10 +263,10 @@ VertexBufferObject::Print( char *text, FILE *fpout )
 			fprintf( fpout, "%7.2f %7.2f %7.2f", PointVec[i].nx, PointVec[i].ny, PointVec[i].nz );
 		else
 			fprintf( fpout, "%7s %7s %7s", blanks, blanks, blanks );
-		if( hasColors )
-			fprintf( fpout, "%7.2f %7.2f %7.2f", PointVec[i].r, PointVec[i].g, PointVec[i].b );
-		else
-			fprintf( fpout, "%7s %7s %7s", blanks, blanks, blanks );
+		/*if( hasColors )
+			fprintf( fpout, "%7.2f %7.2f %7.2f", PointVec[i].r, PointVec[i].g, PointVec[i].b );*/
+		/*else
+			fprintf( fpout, "%7s %7s %7s", blanks, blanks, blanks );*/
 		if( hasTexCoords )
 			fprintf( fpout, "%7.2f %7.2f", PointVec[i].s, PointVec[i].t );
 		else
@@ -295,8 +301,8 @@ VertexBufferObject::Reset( )
 {
 	isFirstDraw = true;
 	hasVertices = hasNormals = hasColors = hasTexCoords = false;
-	glPrimitiveRestartIndex( VertexBufferObject::RESTART_INDEX );
-	glEnable( GL_PRIMITIVE_RESTART );
+	//glPrimitiveRestartIndex( VertexBufferObject::RESTART_INDEX );
+	//glEnable( GL_PRIMITIVE_RESTART );
 	if( parray != NULL )
 	{
 		delete [ ] parray;

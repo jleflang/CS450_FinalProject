@@ -100,7 +100,6 @@ const int MIDDLE = { 2 };
 const int RIGHT = { 1 };
 
 float White[3] = { 1., 1., 1. };
-const float D2R = (float)M_PI / 180.f;
 
 // which projection:
 
@@ -223,15 +222,21 @@ bool Light0On, Light1On, Light2On;
 
 GLSLProgram *Environment;
 GLSLProgram *Back;
+GLSLProgram *Iem;
+GLSLProgram *Prefilter;
+GLSLProgram *Brdf;
 GLSLProgram *Uber;
 
 GLuint framebuf;
 GLuint renderbuf;
+GLuint iemMap;
+GLuint prefilter;
+GLuint brdf;
 
 VertexBufferObject* envCubeObj;
+VertexBufferObject* minicooperObj;
+VertexBufferObject* brdfQuad;
 
-GLuint cubeVAO = 0;
-GLuint cubeVBO = 0;
 
 GLfloat CubeVertices[][3] =
 {
@@ -263,6 +268,16 @@ GLfloat CubeTextures[][2] =
     { 0.,-1. },
     { 1., 1. },
     {-1.,-1. }
+};
+
+GLfloat CubeNormals[][3] =
+{
+    { 0.,  0., -1. },
+    { 0.,  0.,  1. },
+    {-1.,  0.,  0. },
+    { 1.,  0.,  0. },
+    { 0., -1.,  0. },
+    { 0.,  1.,  0. },
 };
 
 // function prototypes:
@@ -298,21 +313,13 @@ void			HsvRgb(float[3], float[3]);
 int				ReadInt(FILE*);
 short			ReadShort(FILE*);
 
-//void			Cross(float[3], float[3], float[3]);
-//float			Dot(float[3], float[3]);
-//float			Unit(float[3], float[3]);
-
-void	SetMaterial(float, float, float, float);
-void	SetPointLight(int, float, float, float, float, float, float);
-void	SetSpotLight(int, float, float, float, float, float, float, float, float, float);
-
 float* Array3(float, float, float);
 float* Array4(float, float, float, float);
 float* BlendArray3(float, float[3], float[3]);
 float* MulArray3(float, float[3]);
 
-int LoadObjFile(char*);
-
+void renderQuad();
+void renderSphere();
 
 // main program:
 
@@ -399,11 +406,10 @@ Display()
     // erase the background:
 
     glDrawBuffer(GL_BACK);
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_NORMALIZE);
-    glShadeModel(GL_SMOOTH);
-
+    //glEnable(GL_NORMALIZE);
 
     // set the viewport to a square centered in the window:
 
@@ -429,6 +435,15 @@ Display()
     else
         projection = glm::perspective(glm::radians(90.), 1., 0.1, 1000.);
 
+    Uber->Use();
+    Uber->SetUniformVariable((char*)"uProj", projection);
+    Uber->SetUniformVariable((char*)"iemMap", 0);
+    Uber->SetUniformVariable((char*)"prefilMap", 1);
+    Uber->SetUniformVariable((char*)"brdfLUT", 2);
+
+    //Back->Use();
+    
+
     // place the objects into the scene:
 
     glMatrixMode(GL_MODELVIEW);
@@ -443,23 +458,16 @@ Display()
 
     modelview = glm::lookAt(eye, look, up);
 
-    //gluLookAt(16., -3.7, 11.2, 0., 0., 0., 0., 1., 0.);
-
-
     // rotate the scene:
 
     modelview = glm::rotate(modelview, glm::radians(Yrot), glm::vec3(0., 1., 0.));
     modelview = glm::rotate(modelview, glm::radians(Xrot), glm::vec3(1., 0., 0.));
 
-    //glRotatef((GLfloat)Yrot, 0., 1., 0.);
-    //glRotatef((GLfloat)Xrot, 1., 0., 0.);
-
-
     // uniformly scale the scene:
 
     if (Scale < MINSCALE)
         Scale = MINSCALE;
-    //glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
+
     modelview = glm::scale(modelview, glm::vec3(Scale, Scale, Scale));
 
     // set the fog parameters:
@@ -478,25 +486,15 @@ Display()
         glDisable(GL_FOG);
     }
 
-    Uber->Use();
-    Uber->SetUniformVariable((char*)"uProj", projection);
-    Uber->SetUniformVariable((char*)"uView", modelview);
-    Uber->SetUniformVariable((char*)"camPos", eye);
-    Uber->SetUniformVariable((char*)"albedo", 0.15f, 0.15f, 0.85f);
-    Uber->SetUniformVariable((char*)"ao", 1.f);
-
-    Back->Use();
-    Back->SetUniformVariable((char*)"uProj", projection);
-
     // possibly draw the axes:
 
-    if (AxesOn != 0)
-    {
-        glm::mat4 axis(1.f);
-        Uber->SetUniformVariable((char*)"uModel", axis);
-        //glColor3fv(&Colors[WhichColor][0]);
-        glCallList(AxesList);
-    }
+    //if (AxesOn != 0)
+    //{
+    //    glm::mat4 axis(1.f);
+    //    Uber->SetUniformVariable((char*)"uModel", axis);
+    //    //glColor3fv(&Colors[WhichColor][0]);
+    //    glCallList(AxesList);
+    //}
 
     float theta = (2.f * (float)M_PI) * Time;
     glm::mat4 model(1.f);
@@ -509,166 +507,116 @@ Display()
     };
 
     glm::vec3 light_color[] = {
-        glm::vec3(100.,100.,100.),
-        glm::vec3(100.,0.,0.),
-        glm::vec3(0.,100.,100.),
-        glm::vec3(100.,0.,100.),
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
     };
 
     glm::mat4 L0_td = glm::translate(model, light_translate[0]);
+    L0_td = glm::scale(L0_td, glm::vec3(0.5f));
     glm::mat4 L1_td = glm::translate(model, light_translate[1]);
+    L1_td = glm::scale(L1_td, glm::vec3(0.5f));
     glm::mat4 L2_td = glm::translate(model, light_translate[2]);
+    L2_td = glm::scale(L2_td, glm::vec3(0.5f));
+    glm::mat4 L3_td = glm::translate(model, light_translate[3]);
+    L3_td = glm::scale(L3_td, glm::vec3(0.5f));
+
+    Uber->SetUniformVariable((char*)"uView", modelview);
+    Uber->SetUniformVariable((char*)"uCamPos", look);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, brdf);
 
     // draw the current object:
-    //glLightModelfv(GL_LIGHT_MODEL_AMBIENT, MulArray3(.3f, White));
-    //glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
-    //glEnable(GL_LIGHTING);
 
-    //glPushMatrix();
-    Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
-    Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
-    glDisable(GL_LIGHTING);
-    /*SetSpotLight(GL_LIGHT0, 3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2. * M_PI),
-        -1., -0.5, -1.,
-        1., 1., 1.);*/
-    //glEnable(GL_LIGHT0);
-    /*glColor3fv(White);
-    glPushMatrix();
-    glMultMatrixf(glm::value_ptr(L0_td));*/
-    //glTranslatef(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI));
-    //Uber->SetUniformVariable((char*)"albedo", light_color[0]);
-    Uber->SetUniformVariable((char*)"uModel", L0_td);
-    glCallList(SphereList);
-    //glPopMatrix();
-    //glEnable(GL_LIGHTING);
-    //glPopMatrix();
+    //glm::mat4 torus(1.);
 
-    //glPushMatrix();
-    Uber->SetUniformVariable((char*)"lightPositions[1]", light_translate[1]);
-    Uber->SetUniformVariable((char*)"lightColors[1]", light_color[1]);
-    //SetPointLight(GL_LIGHT1, 4.9f * (float)sin(theta), 8.f, -3.f, 1.f, 0.f, 0.f);
-    //glEnable(GL_LIGHT1);
-    //glDisable(GL_LIGHTING);
-    //glColor3f(1., 0., 0.);
-    //glPushMatrix();
-    //glMultMatrixf(glm::value_ptr(L1_td));
-    //glTranslatef(4.9f * (float)sin(theta), 8.f, -3.f);
-    //Uber->SetUniformVariable((char*)"albedo", light_color[1]);
-    Uber->SetUniformVariable((char*)"uModel", L1_td);
-    glCallList(SphereList);
-    //glPopMatrix();
-    //glEnable(GL_LIGHTING);
-    //glPopMatrix();
+    //torus = glm::rotate(torus, glm::radians(88.9999f * (float)sin(theta / 2)), glm::vec3(1.f, 0.f, 0.f));
+    //torus = glm::translate(torus, glm::vec3(-11.5f, 4.f, -9.f));
+    ////torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
 
-    //glPushMatrix();
-    Uber->SetUniformVariable((char*)"lightPositions[3]", light_translate[2]);
-    Uber->SetUniformVariable((char*)"lightColors[3]", light_color[2]);
-    /*SetSpotLight(GL_LIGHT2, -14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f,
-        (float)cos(theta), (float)sin(theta), -0.4f,
-        0.f, 1.f, 1.f);
-    glEnable(GL_LIGHT2);*/
-    //glDisable(GL_LIGHTING);
-    /*glColor3f(0., 1., 1.);
-    glPushMatrix();
-    glMultMatrixf(glm::value_ptr(L2_td));*/
-    //glTranslatef(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f);
-    //Uber->SetUniformVariable((char*)"albedo", light_color[2]);
-    Uber->SetUniformVariable((char*)"uModel", L2_td);
-    glCallList(SphereList);
-    //glPopMatrix();
-    glEnable(GL_LIGHTING);
-    //glPopMatrix();
-
-    if (Light0On)
-        glEnable(GL_LIGHT0);
-    else
-        glDisable(GL_LIGHT0);
-
-    if (Light1On)
-        glEnable(GL_LIGHT1);
-    else
-        glDisable(GL_LIGHT1);
-
-    if (Light2On)
-        glEnable(GL_LIGHT2);
-    else
-        glDisable(GL_LIGHT2);
-
-    glm::mat4 torus(1.);
-
-    torus = glm::rotate(torus, D2R * (88.9999f * (float)sin(theta / 2)), glm::vec3(1.f, 0.f, 0.f));
-    torus = glm::translate(torus, glm::vec3(-11.5f, 4.f, -9.f));
-    //torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
-
-    //glPushMatrix();
-    SetMaterial(0.5f, 1.f, 0.1f, 2.f);
-    Uber->SetUniformVariable((char*)"metallic", 0.f);
-    Uber->SetUniformVariable((char*)"roughness", 0.f);
-    Uber->SetUniformVariable((char*)"uModel", torus);
-    //glMultMatrixf(glm::value_ptr(torus));
-    //glRotatef(88.9999f * (float)sin(theta / 2), 0.f, 1.f, 0.f);
-    //glTranslatef(-11.5f, 4.f, -9.f);
-    //glRotatef(90.f, 1.f, 0.f, 0.f);
-    //glShadeModel(GL_FLAT);
-    glutSolidTorus(2., 4., 70, 70);
-    //glPopMatrix();
+    //Uber->SetUniformVariable((char*)"metallic", 1.0f);
+    //Uber->SetUniformVariable((char*)"roughness", .1f);
+    //Uber->SetUniformVariable((char*)"uModel", torus);
+    //glutSolidTorus(2., 4., 70, 70);
 
     glm::mat4 objfile(1.f);
 
-    objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
-    objfile = glm::rotate(objfile, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
-    objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
+    //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+    //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(1.f, 0.f, 0.f));
+    //objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
     objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
 
-    //glPushMatrix();
-    SetMaterial(0.6f, 0.f, 0.32f, 32.f);
-    Uber->SetUniformVariable((char*)"metallic", 32.f);
-    Uber->SetUniformVariable((char*)"roughness", 0.f);
+    Uber->SetUniformVariable((char*)"metallic", 0.94f);
+    Uber->SetUniformVariable((char*)"roughness", 0.13f);
     Uber->SetUniformVariable((char*)"uModel", objfile);
-    //glMultMatrixf(glm::value_ptr(objfile));
-    /*glRotatef(90.f, 0.f, 0.f, 1.f);
-    glTranslatef(0.f, 0.f, -9.f);
-    glScalef(0.1f, 0.1f, 0.1f);*/
-    //glShadeModel(GL_SMOOTH);
-    glCallList(ObjFileList);
-    //glPopMatrix();
+    minicooperObj->Draw();
 
-    glm::mat4 globe(1.f);
+   /* glm::mat4 globe(1.f);
 
-    globe = glm::translate(globe, glm::vec3(-1.f, 5.f, -3.f));
+    globe = glm::translate(globe, glm::vec3(-1.f, 5.f, -3.f));*/
     //globe = glm::rotate(globe, D2R * 90.f, glm::vec3(1.f, 0.f, 0.f));
 
     //glEnable(GL_TEXTURE_2D);
 
+    /*glActiveTexture(GL_TEXTURE10);
     glBindTexture(GL_TEXTURE_2D, Tex0);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-    //glPushMatrix();
-    SetMaterial(0.f, 0.f, 0.f, 0.45f);
-    Uber->SetUniformVariable((char*)"metallic", 0.45f);
-    Uber->SetUniformVariable((char*)"roughness", 0.f);
+    Uber->SetUniformVariable((char*)"metallic", 0.f);
+    Uber->SetUniformVariable((char*)"roughness", 0.05f);
     Uber->SetUniformVariable((char*)"uModel", globe);
-    //glMultMatrixf(glm::value_ptr(globe));
-    /*glTranslatef(-1.f, 5.f, -3.f);
-    glRotatef(90.f, 1.f, 0.f, 0.f);*/
-    //glShadeModel(GL_SMOOTH);
     OsuSphere(1.f, 360, 55);
-    //glPopMatrix();
-    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);*/
 
     //glDisable(GL_TEXTURE_2D);
 
+    Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
+    Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
+    Uber->SetUniformVariable((char*)"uModel", L0_td);
+    //glCallList(SphereList);
+    renderSphere();
+
+    Uber->SetUniformVariable((char*)"lightPositions[1]", light_translate[1]);
+    Uber->SetUniformVariable((char*)"lightColors[1]", light_color[1]);
+    Uber->SetUniformVariable((char*)"uModel", L1_td);
+    //glCallList(SphereList);
+    renderSphere();
+
+    Uber->SetUniformVariable((char*)"lightPositions[2]", light_translate[2]);
+    Uber->SetUniformVariable((char*)"lightColors[2]", light_color[2]);
+    Uber->SetUniformVariable((char*)"uModel", L2_td);
+    //glCallList(SphereList);
+    renderSphere();
+
+    Uber->SetUniformVariable((char*)"lightPositions[3]", light_translate[3]);
+    Uber->SetUniformVariable((char*)"lightColors[3]", light_color[3]);
+    Uber->SetUniformVariable((char*)"uModel", L3_td);
+    //glCallList(SphereList);
+    renderSphere();
+
+    Uber->Use(0);
     
+    Back->Use();
+    Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
+    Back->SetUniformVariable((char*)"uenvMap", 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
 
     Back->Use(0);
 
-    Uber->Use(0);
+    //Brdf->Use();
+    //renderQuad();
+    //Brdf->UnUse();
 
-    //glDisable(GL_LIGHTING);
 
     // #ifdef DEMO_Z_FIGHTING
     //     if( DepthFightingOn != 0 )
@@ -1043,6 +991,7 @@ InitGraphics()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    //glEnable(GL_NORMALIZE);
 
     envCubeObj = new VertexBufferObject();
     envCubeObj->CollapseCommonVertices(false);
@@ -1053,6 +1002,7 @@ InitGraphics()
         {
             GLuint k = CubeIndices[i][j];
             envCubeObj->glVertex3fv(CubeVertices[k]);
+            envCubeObj->glNormal3fv(CubeNormals[i]);
             envCubeObj->glTexCoord2fv(CubeTextures[k]);
         }
     }
@@ -1062,6 +1012,42 @@ InitGraphics()
     envCubeObj->SetVerbose(false);
 #else
     envCubeObj->SetVerbose(true);
+#endif // !_DEBUG
+
+    minicooperObj = new VertexBufferObject();
+    minicooperObj->CollapseCommonVertices(false);
+    minicooperObj->glBegin(GL_TRIANGLES);
+    LoadObjFile((char*)"assets\\70M_90.obj", minicooperObj);
+    minicooperObj->glEnd();
+
+#ifndef _DEBUG
+    minicooperObj->SetVerbose(false);
+#else
+    minicooperObj->SetVerbose(true);
+#endif // !_DEBUG
+
+    //glShadeModel(GL_FLAT);
+    //glDisable(GL_NORMALIZE);
+
+    brdfQuad = new VertexBufferObject();
+    brdfQuad->CollapseCommonVertices(false);
+    brdfQuad->glBegin(GL_TRIANGLE_STRIP);
+
+    brdfQuad->glVertex3f(-1., 1., 0.);
+    brdfQuad->glTexCoord2f(0., 1.);
+    brdfQuad->glVertex3f(-1., -1., 0.);
+    brdfQuad->glTexCoord2f(0., 0.);
+    brdfQuad->glVertex3f(-1., 1., 0.);
+    brdfQuad->glTexCoord2f(1., 1.);
+    brdfQuad->glVertex3f(1., -1., 0.);
+    brdfQuad->glTexCoord2f(1., 0.);
+
+    brdfQuad->glEnd();
+
+#ifndef _DEBUG
+    brdfQuad->SetVerbose(false);
+#else
+    brdfQuad->SetVerbose(true);
 #endif // !_DEBUG
 
     Back = new GLSLProgram();
@@ -1096,6 +1082,54 @@ InitGraphics()
 #endif // _DEBUG
     Environment->SetVerbose(false);
 
+    Iem = new GLSLProgram();
+
+    valid = Iem->Create((char*)"shaders\\env.vert", (char*)"shaders\\iem.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Iem->SetVerbose(false);
+
+    Prefilter = new GLSLProgram();
+
+    valid = Prefilter->Create((char*)"shaders\\env.vert", (char*)"shaders\\prefilter.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Prefilter->SetVerbose(false);
+
+    Brdf = new GLSLProgram();
+
+    valid = Brdf->Create((char*)"shaders\\brdfLUT.vert", (char*)"shaders\\brdfLUT.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "Shader cannot be created!\n");
+        DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "Shader created.\n");
+    }
+#endif // _DEBUG
+    Brdf->SetVerbose(false);
+
     Uber = new GLSLProgram();
 
     valid = Uber->Create((char*)"shaders\\objshader.vert", (char*)"shaders\\objshader.frag");
@@ -1111,6 +1145,11 @@ InitGraphics()
     }
 #endif // _DEBUG
     Uber->SetVerbose(false);
+
+    Uber->Use();
+    Uber->SetUniformVariable((char*)"albedo", 0.5f, 0.25f, 0.2f);
+    Uber->SetUniformVariable((char*)"ao", 1.0f);
+    Uber->Use(0);
 
     // Init the Texture
     // Texture BMP found at:
@@ -1135,17 +1174,17 @@ InitGraphics()
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
 
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
     glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
     
     // Init the Env HDR
     stbi_set_flip_vertically_on_load(true);
-    float* envImage = stbi_loadf((char*)"assets\\shanghai_riverside_2k.hdr", &envW, &envH, &nrComp, 0);
+    float* envImage = stbi_loadf((char*)"assets\\LA_Downtown_Helipad_GoldenHour_3k.hdr", &envW, &envH, &nrComp, 0);
     if (envImage)
     {
         glGenTextures(1, &envMapTexture);
         glBindTexture(GL_TEXTURE_2D, envMapTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, envW, envH, 0, GL_RGB, GL_FLOAT, envImage);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, envW, envH, 0, GL_RGB, GL_FLOAT, envImage);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1159,12 +1198,12 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 1024, 1024, 0, GL_RGB, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
@@ -1184,7 +1223,7 @@ InitGraphics()
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, envMapTexture);
-    glViewport(0, 0, 512, 512);
+    glViewport(0, 0, 1024, 1024);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     for (int i = 0; i < 6; ++i)
     {
@@ -1195,8 +1234,127 @@ InitGraphics()
         envCubeObj->Draw();
     }
 
+    Environment->UnUse();
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    glGenTextures(1, &iemMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 64, 64, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 64, 64);
+
+    // pbr: solve diffuse integral by convolution to create an irradiance (cube)map.
+    // -----------------------------------------------------------------------------
+    Iem->Use();
+    Iem->SetUniformVariable((char*)"uenvMap", 0);
+    Iem->SetUniformVariable((char*)"uProj", captureProjection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
+
+    glViewport(0, 0, 64, 64); // don't forget to configure the viewport to the capture dimensions.
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        Iem->SetUniformVariable((char*)"uView", captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, iemMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        envCubeObj->Draw();
+    }
+
+    Iem->UnUse();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glGenTextures(1, &prefilter);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 256, 256, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // be sure to set minification filter to mip_linear 
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // generate mipmaps for the cubemap so OpenGL automatically allocates the required memory.
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    // pbr: run a quasi monte-carlo simulation on the environment lighting to create a prefilter (cube)map.
+    // ----------------------------------------------------------------------------------------------------
+    Prefilter->Use();
+    Prefilter->SetUniformVariable((char*)"uenvMap", 0);
+    Prefilter->SetUniformVariable((char*)"uProj", captureProjection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    unsigned int maxMipLevels = 5;
+    for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+    {
+        // reisze framebuffer according to mip-level size.
+        unsigned int mipWidth = 256 * std::pow(0.5, mip);
+        unsigned int mipHeight = 256 * std::pow(0.5, mip);
+        glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+        glViewport(0, 0, mipWidth, mipHeight);
+
+        float roughness = (float)mip / (float)(maxMipLevels - 1);
+        Prefilter->SetUniformVariable((char*)"roughness", roughness);
+        for (unsigned int i = 0; i < 6; ++i)
+        {
+            Prefilter->SetUniformVariable((char*)"uView", captureViews[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilter, mip);
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            envCubeObj->Draw();
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    Prefilter->UnUse();
+
+    // pbr: generate a 2D LUT from the BRDF equations used.
+    // ----------------------------------------------------
+    glGenTextures(1, &brdf);
+
+    // pre-allocate enough memory for the LUT texture.
+    glBindTexture(GL_TEXTURE_2D, brdf);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 1024, 1024, 0, GL_RG, GL_FLOAT, 0);
+    // be sure to set wrapping mode to GL_CLAMP_TO_EDGE
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdf, 0);
+
+    glViewport(0, 0, 1024, 1024);
+    Brdf->Use();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderQuad();
+    //brdfQuad->Draw();
+    Brdf->UnUse();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 
@@ -1346,10 +1504,10 @@ InitLists()
     OsuSphere(.5, 360, 48);
     glEndList();
 
-    ObjFileList = glGenLists(1);
+    /*ObjFileList = glGenLists(1);
     glNewList(ObjFileList, GL_COMPILE);
     LoadObjFile((char*)"assets\\minicooper.obj");
-    glEndList();
+    glEndList();*/
 
     // create the axes:
 
@@ -2058,53 +2216,6 @@ HsvRgb(float hsv[3], float rgb[3])
 //     return dist;
 // }
 
-void
-SetMaterial(float r, float g, float b, float shininess)
-{
-    glMaterialfv(GL_BACK, GL_EMISSION, Array3(0., 0., 0.));
-    glMaterialfv(GL_BACK, GL_AMBIENT, MulArray3(.4f, White));
-    glMaterialfv(GL_BACK, GL_DIFFUSE, MulArray3(1., White));
-    glMaterialfv(GL_BACK, GL_SPECULAR, Array3(0., 0., 0.));
-    glMaterialf(GL_BACK, GL_SHININESS, 5.f);
-
-    glMaterialfv(GL_FRONT, GL_EMISSION, Array3(0., 0., 0.));
-    glMaterialfv(GL_FRONT, GL_AMBIENT, Array3(r, g, b));
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, Array3(r, g, b));
-    glMaterialfv(GL_FRONT, GL_SPECULAR, MulArray3(.8f, White));
-    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
-}
-
-
-void
-SetPointLight(int ilight, float x, float y, float z, float r, float g, float b)
-{
-    glLightfv(ilight, GL_POSITION, Array3(x, y, z));
-    glLightfv(ilight, GL_AMBIENT, Array3(0., 0., 0.));
-    glLightfv(ilight, GL_DIFFUSE, Array3(r, g, b));
-    glLightfv(ilight, GL_SPECULAR, Array3(r, g, b));
-    glLightf(ilight, GL_CONSTANT_ATTENUATION, 1.);
-    glLightf(ilight, GL_LINEAR_ATTENUATION, 0.);
-    glLightf(ilight, GL_QUADRATIC_ATTENUATION, 0.);
-    glEnable(ilight);
-}
-
-
-void
-SetSpotLight(int ilight, float x, float y, float z, float xdir, float ydir, float zdir, float r, float g, float b)
-{
-    glLightfv(ilight, GL_POSITION, Array3(x, y, z));
-    glLightfv(ilight, GL_SPOT_DIRECTION, Array3(xdir, ydir, zdir));
-    glLightf(ilight, GL_SPOT_EXPONENT, 1.);
-    glLightf(ilight, GL_SPOT_CUTOFF, 45.);
-    glLightfv(ilight, GL_AMBIENT, Array3(0., 0., 0.));
-    glLightfv(ilight, GL_DIFFUSE, Array3(r, g, b));
-    glLightfv(ilight, GL_SPECULAR, Array3(r, g, b));
-    glLightf(ilight, GL_CONSTANT_ATTENUATION, 1.);
-    glLightf(ilight, GL_LINEAR_ATTENUATION, 0.);
-    glLightf(ilight, GL_QUADRATIC_ATTENUATION, 0.);
-    glEnable(ilight);
-}
-
 float*
 Array3(float a, float b, float c)
 {
@@ -2151,4 +2262,127 @@ MulArray3(float factor, float array0[3])
     array[2] = factor * array0[2];
     array[3] = 1.;
     return array;
+}
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+    if (quadVAO == 0)
+    {
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+unsigned int sphereVAO = 0;
+unsigned int indexCount;
+void renderSphere()
+{
+    if (sphereVAO == 0)
+    {
+        glGenVertexArrays(1, &sphereVAO);
+
+        unsigned int vbo, ebo;
+        glGenBuffers(1, &vbo);
+        glGenBuffers(1, &ebo);
+
+        std::vector<glm::vec3> positions;
+        std::vector<glm::vec2> uv;
+        std::vector<glm::vec3> normals;
+        std::vector<unsigned int> indices;
+
+        const unsigned int X_SEGMENTS = 64;
+        const unsigned int Y_SEGMENTS = 64;
+        const float PI = 3.14159265359;
+        for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+        {
+            for (unsigned int y = 0; y <= Y_SEGMENTS; ++y)
+            {
+                float xSegment = (float)x / (float)X_SEGMENTS;
+                float ySegment = (float)y / (float)Y_SEGMENTS;
+                float xPos = std::cos(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+                float yPos = std::cos(ySegment * PI);
+                float zPos = std::sin(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+
+                positions.push_back(glm::vec3(xPos, yPos, zPos));
+                uv.push_back(glm::vec2(xSegment, ySegment));
+                normals.push_back(glm::vec3(xPos, yPos, zPos));
+            }
+        }
+
+        bool oddRow = false;
+        for (unsigned int y = 0; y < Y_SEGMENTS; ++y)
+        {
+            if (!oddRow) // even rows: y == 0, y == 2; and so on
+            {
+                for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+                {
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                }
+            }
+            else
+            {
+                for (int x = X_SEGMENTS; x >= 0; --x)
+                {
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                }
+            }
+            oddRow = !oddRow;
+        }
+        indexCount = indices.size();
+
+        std::vector<float> data;
+        for (unsigned int i = 0; i < positions.size(); ++i)
+        {
+            data.push_back(positions[i].x);
+            data.push_back(positions[i].y);
+            data.push_back(positions[i].z);
+            if (normals.size() > 0)
+            {
+                data.push_back(normals[i].x);
+                data.push_back(normals[i].y);
+                data.push_back(normals[i].z);
+            }
+            if (uv.size() > 0)
+            {
+                data.push_back(uv[i].x);
+                data.push_back(uv[i].y);
+            }
+        }
+        glBindVertexArray(sphereVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        unsigned int stride = (3 + 2 + 3) * sizeof(float);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
+    }
+
+    glBindVertexArray(sphereVAO);
+    glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }

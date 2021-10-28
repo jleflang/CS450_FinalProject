@@ -6,6 +6,7 @@
 #pragma warning(disable:4996)
 #endif
 
+#define GLEW_STATIC
 #include "glew.h"
 #include "glut.h"
 #include <GL/gl.h>
@@ -26,7 +27,7 @@ struct Point
 {
 	float x, y, z;
 	float nx, ny, nz;
-	float r, g, b;
+	//float r, g, b;
 	float s, t;
 };
 
@@ -85,6 +86,7 @@ class VertexBufferObject
 	GLuint *			earray;
 	GLuint				pbuffer;
 	GLuint				ebuffer;
+	GLuint				abuffer;
 
 	const static GLuint RESTART_INDEX = ~0;	// 0xffffffff
 	const static int TWO_VALUES   = 2;
@@ -97,8 +99,8 @@ class VertexBufferObject
 	void CollapseCommonVertices( bool );
 	void Draw( );
 	void glBegin( GLenum );
-	void glColor3f( GLfloat, GLfloat, GLfloat );
-	void glColor3fv( GLfloat * );
+	//void glColor3f( GLfloat, GLfloat, GLfloat );
+	//void glColor3fv( GLfloat * );
 	void glEnd( );
 	void glNormal3f( GLfloat, GLfloat, GLfloat );
 	void glNormal3fv( GLfloat * );

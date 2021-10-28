@@ -11,6 +11,7 @@
 #pragma warning(disable:4996)
 #endif
 
+#define GLEW_STATIC
 #include "glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>

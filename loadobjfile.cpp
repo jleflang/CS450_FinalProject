@@ -1,23 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-#define _USE_MATH_DEFINES
-#include <math.h>
-
-#include <ctype.h>
-
-#ifdef WIN32
-#include <windows.h>
-#pragma warning(disable:4996)
-#endif
-
-#define GLEW_STATIC
-#include "glew.h"
-#include <GL/gl.h>
-
-#include <vector>
-
+#include "loadobjfile.h"
 
 // delimiters for parsing the obj file:
 
@@ -57,7 +38,7 @@ float	Unit(float[3], float[3]);
 
 
 int
-LoadObjFile(char* name)
+LoadObjFile(char* name, VertexBufferObject *object)
 {
 	char* cmd;		// the command string
 	char* str;		// argument string
@@ -92,7 +73,7 @@ LoadObjFile(char* name)
 	float ymax = -ymin;
 	float zmax = -zmin;
 
-	glBegin(GL_TRIANGLES);
+	//glBegin(GL_TRIANGLES);
 
 	for (; ; )
 	{
@@ -288,7 +269,7 @@ LoadObjFile(char* name)
 
 				// get the planar normal, in case vertex normals are not defined:
 
-				struct Vertex* v0 = &Vertices[vertices[vv[0]].v - 1];
+				/*struct Vertex* v0 = &Vertices[vertices[vv[0]].v - 1];
 				struct Vertex* v1 = &Vertices[vertices[vv[1]].v - 1];
 				struct Vertex* v2 = &Vertices[vertices[vv[2]].v - 1];
 
@@ -301,24 +282,24 @@ LoadObjFile(char* name)
 				v02[2] = v2->z - v0->z;
 				Cross(v01, v02, norm);
 				Unit(norm, norm);
-				glNormal3fv(norm);
+				glNormal3fv(norm);*/
 
 				for (int vtx = 0; vtx < 3; vtx++)
 				{
-					if (vertices[vv[vtx]].t != 0)
-					{
-						struct TextureCoord* tp = &TextureCoords[vertices[vv[vtx]].t - 1];
-						glTexCoord2f(tp->s, tp->t);
-					}
+					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
+					object->glVertex3f(vp->x, vp->y, vp->z);
 
 					if (vertices[vv[vtx]].n != 0)
 					{
 						struct Normal* np = &Normals[vertices[vv[vtx]].n - 1];
-						glNormal3f(np->nx, np->ny, np->nz);
+						object->glNormal3f(np->nx, np->ny, np->nz);
 					}
 
-					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
-					glVertex3f(vp->x, vp->y, vp->z);
+					if (vertices[vv[vtx]].t != 0)
+					{
+						struct TextureCoord* tp = &TextureCoords[vertices[vv[vtx]].t - 1];
+						object->glTexCoord2f(tp->s, tp->t);
+					}
 				}
 			}
 			continue;
@@ -332,7 +313,7 @@ LoadObjFile(char* name)
 
 	}
 
-	glEnd();
+	//glEnd();
 	fclose(fp);
 
 #ifdef _DEBUG

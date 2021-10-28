@@ -158,6 +158,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 		bool SkipToNextVararg = false;
 		if (type < 0)
 		{
+#ifdef _DEBUG
 			fprintf(stderr, "Unknown filename extension: '%s'\n", extension);
 			fprintf(stderr, "Legal Extensions are: ");
 			for (int i = 0; i < maxBinaryTypes; i++)
@@ -174,6 +175,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 			fprintf(stderr, "\n");
 			Valid = false;
 			SkipToNextVararg = true;
+#endif // _DEBUG
 		}
 
 		if (!SkipToNextVararg)

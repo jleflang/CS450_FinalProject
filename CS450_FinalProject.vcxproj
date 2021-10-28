@@ -173,6 +173,10 @@ xcopy /y /s /e $(SolutionDir)shaders\ $(OutputPath)shaders\</Command>
     <ClInclude Include="includes\loadobjfile.h" />
     <ClInclude Include="includes\stb_image.h" />
     <ClInclude Include="includes\vertexbufferobject.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CS450_FinalProject.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

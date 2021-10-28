@@ -1,8 +1,8 @@
-#version 330 compatibility
-out vec4 FragColor;
-in vec3 vPos;
+#version 460
+layout (location = 0) out vec4 FragColor;
+layout (location = 0) in vec3 vPos;
 
-uniform samplerCube uenvMap;
+layout (binding = 0) uniform samplerCube uenvMap;
 
 void 
 main()

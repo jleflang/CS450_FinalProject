@@ -1,8 +1,9 @@
-#version 330 compatibility
-out vec4 FragColor;
-in vec2 vTexCoords;
-in vec3 vPos;
-in vec3 vNormal;
+#version 460
+
+layout (location = 0) out vec4 FragColor;
+layout (location = 0) in vec2 vTexCoords;
+layout (location = 1) in vec3 vPos;
+layout (location = 2) in vec3 vNormal;
 
 // material parameters
 uniform vec3 albedo;
@@ -10,11 +11,15 @@ uniform float metallic;
 uniform float roughness;
 uniform float ao;
 
+layout (binding = 0) uniform samplerCube iemMap;
+layout (binding = 1) uniform samplerCube prefilMap;
+layout (binding = 2) uniform sampler2D brdfLUT;
+
+uniform vec3 uCamPos;
+
 // lights
 uniform vec3 lightPositions[4];
 uniform vec3 lightColors[4];
-
-uniform vec3 camPos;
 
 const float PI = 3.14159265359;
 // ----------------------------------------------------------------------------
@@ -35,7 +40,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r*r) / 8.0;
+    float k = (r*r) * 0.125;
 
     float nom   = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -55,13 +60,18 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 // ----------------------------------------------------------------------------
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - min(cosTheta, 1.0), 0.0, 1.0), 5.0);
 }
+// ----------------------------------------------------------------------------
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - min(cosTheta, 1.0), 0.0, 1.0), 5.0);
+}   
 // ----------------------------------------------------------------------------
 void main()
 {		
     vec3 N = vNormal;
-    vec3 V = normalize(camPos - vPos);
+    vec3 V = normalize(uCamPos-vPos);
     vec3 R = reflect(-V, N); 
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
@@ -86,8 +96,8 @@ void main()
         vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
            
         vec3 numerator    = NDF * G * F; 
-        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // + 0.0001 to prevent divide by zero
-        vec3 specular = numerator / denominator;
+        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0); 
+        vec3 specular = numerator / max(denominator, 0.000001);
         
         // kS is equal to Fresnel
         vec3 kS = F;
@@ -105,16 +115,32 @@ void main()
 
         // add to outgoing radiance Lo
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
-    }   
+    }
+
+	// ambient lighting (we now use IBL as the ambient term)
+    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 kS = F;
+    vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metallic;	  
+    
+    vec3 irradiance = texture(iemMap, N).rgb;
+    vec3 diffuse      = irradiance * albedo;
+    
+    // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(prefilMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);	
+    
+    vec3 ambient = (kD * diffuse + specular) * ao;
     
     vec3 color = ambient + Lo;
 
     // HDR tonemapping
     color = color / (color + vec3(1.0));
     // gamma correct
-    color = pow(color, vec3(1.0/2.2)); 
+    color = pow(color, vec3(0.454545454545)); 
 
     FragColor = vec4(color, 1.0);
 }
