@@ -91,7 +91,7 @@ void main()
 			inter *= 0.25;
             float pdf = D * inter + 0.0001; 
 
-            float resolution = 512.0; // resolution of source cubemap (per face)
+            float resolution = 2048.0; // resolution of source cubemap (per face)
             float saTexel  = 4.0 * PI / (6.0 * resolution * resolution);
             float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
 

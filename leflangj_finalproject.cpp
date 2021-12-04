@@ -14,9 +14,10 @@
 #include "glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "glut.h"
+#include "freeglut.h"
 
 #include "glm/glm.hpp"
+#include "glm/gtc/matrix_access.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
@@ -181,8 +182,8 @@ const GLfloat FOGEND = { 4. };
 // in general, you don't need to worry about these
 // i compile these in to show class examples of things going wrong
 
-#define DEMO_Z_FIGHTING
-#define DEMO_DEPTH_BUFFER
+//#define DEMO_Z_FIGHTING
+//#define DEMO_DEPTH_BUFFER
 
 // should we turn the shadows on?
 
@@ -218,8 +219,6 @@ int    envW, envH, nrComp;
 unsigned char* Texture;
 int           width, height;
 
-bool Light0On, Light1On, Light2On;
-
 GLSLProgram *Environment;
 GLSLProgram *Back;
 GLSLProgram *Iem;
@@ -227,16 +226,28 @@ GLSLProgram *Prefilter;
 GLSLProgram *Brdf;
 GLSLProgram *Uber;
 
+GLSLProgram *GetDepth;
+GLSLProgram* RenderWithShadows;
+
 GLuint framebuf;
 GLuint renderbuf;
 GLuint iemMap;
 GLuint prefilter;
 GLuint brdf;
 
+GLuint depthMap;
+GLuint shadowMap;
+GLuint shadowColorMap;
+
 VertexBufferObject* envCubeObj;
 VertexBufferObject* minicooperObj;
 VertexBufferObject* brdfQuad;
 
+const unsigned int shadows[2] = 
+{
+    2048,
+    2048
+};
 
 GLfloat CubeVertices[][3] =
 {
@@ -252,12 +263,18 @@ GLfloat CubeVertices[][3] =
 
 GLuint CubeIndices[][4] =
 {
-    { 0, 2, 3, 1 },
-    { 4, 5, 7, 6 },
-    { 1, 3, 7, 5 },
-    { 0, 4, 6, 2 },
-    { 2, 6, 7, 3 },
-    { 0, 1, 5, 4 }
+    //{ 0, 2, 3, 1 },
+    { 1, 3, 2, 0 },
+    //{ 4, 5, 7, 6 },
+    { 6, 7, 5, 4 },
+    //{ 1, 3, 7, 5 },
+    { 5, 7, 3, 1 },
+    //{ 0, 4, 6, 2 },
+    { 2, 6, 4, 0 },
+    //{ 2, 6, 7, 3 },
+    { 3, 7, 6, 2 },
+    //{ 0, 1, 5, 4 }
+    { 4, 5, 1, 0 }
 };
 
 GLfloat CubeTextures[][2] =
@@ -312,11 +329,6 @@ unsigned char* BmpToTexture(char*, int*, int*);
 void			HsvRgb(float[3], float[3]);
 int				ReadInt(FILE*);
 short			ReadShort(FILE*);
-
-float* Array3(float, float, float);
-float* Array4(float, float, float, float);
-float* BlendArray3(float, float[3], float[3]);
-float* MulArray3(float, float[3]);
 
 void renderQuad();
 void renderSphere();
@@ -403,13 +415,83 @@ Display()
 
     glutSetWindow(MainWindow);
 
+    float theta = (2.f * (float)M_PI) * Time;
+    glm::mat4 model(1.f);
+
+    glm::vec3 light_translate[] = {
+        glm::vec3(5.f * (float)cos(2. * M_PI), 2.f, 5.f * (float)sin(2 * M_PI)),
+        glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f),
+        glm::vec3(-7.f * (float)cos(theta), -7.f * (float)sin(theta), -6.f),
+        glm::vec3(5.f * (float)sin(2. * M_PI), 2.f, 5.f * (float)cos(2 * M_PI)),
+    };
+
+    glm::vec3 light_color[] = {
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,600.),
+    };
+
+    glm::mat4 L0_td = glm::translate(model, light_translate[0]);
+    L0_td = glm::scale(L0_td, glm::vec3(0.5f));
+    glm::mat4 L1_td = glm::translate(model, light_translate[1]);
+    L1_td = glm::scale(L1_td, glm::vec3(0.5f));
+    glm::mat4 L2_td = glm::translate(model, light_translate[2]);
+    L2_td = glm::scale(L2_td, glm::vec3(0.5f));
+    glm::mat4 L3_td = glm::translate(model, light_translate[3]);
+    L3_td = glm::scale(L3_td, glm::vec3(0.5f));
+
+    GetDepth->Use();
+
+    glm::mat4 lightProjection = glm::ortho(-500.0f, 500.0f, -500.0f, 500.0f, 0.f, 500.f);
+    glm::mat4 lightView = glm::lookAt(light_translate[2], glm::vec3(0., 0., 0.), glm::vec3(0., 1., 0.));
+
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+    glCullFace(GL_FRONT);
+    glViewport(0, 0, shadows[0], shadows[1]);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glShadeModel(GL_FLAT);
+    glDisable(GL_NORMALIZE);
+
+    GetDepth->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
+
+    glm::mat4 objfile(1.f);
+
+    //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+    //objfile = glm::rotate(objfile, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
+    //objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
+    //objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
+   
+    GetDepth->SetUniformVariable((char*)"uModel", objfile);
+    minicooperObj->Draw();
+
+    GetDepth->SetUniformVariable((char*)"uModel", L0_td);
+    renderSphere();
+
+    GetDepth->SetUniformVariable((char*)"uModel", L1_td);
+    renderSphere();
+
+    GetDepth->SetUniformVariable((char*)"uModel", L2_td);
+    renderSphere();
+
+    GetDepth->SetUniformVariable((char*)"uModel", L3_td);
+    renderSphere();
+
+    GetDepth->Use(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     // erase the background:
 
     glDrawBuffer(GL_BACK);
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    //glEnable(GL_NORMALIZE);
+    glShadeModel(GL_SMOOTH);
+    glEnable(GL_NORMALIZE);
 
     // set the viewport to a square centered in the window:
 
@@ -420,6 +502,7 @@ Display()
     GLint yb = (vy - v) / 2;
     glViewport(xl, yb, v, v);
 
+    glCullFace(GL_BACK);
 
     // set the viewing volume:
     // remember that the Z clipping  values are actually
@@ -435,11 +518,15 @@ Display()
     else
         projection = glm::perspective(glm::radians(90.), 1., 0.1, 1000.);
 
+    RenderWithShadows->SetUniformVariable((char*)"uProj", projection);
+
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
+    Uber->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
     Uber->SetUniformVariable((char*)"iemMap", 0);
     Uber->SetUniformVariable((char*)"prefilMap", 1);
     Uber->SetUniformVariable((char*)"brdfLUT", 2);
+    Uber->SetUniformVariable((char*)"shadowMap", 10);
 
     //Back->Use();
     
@@ -470,6 +557,8 @@ Display()
 
     modelview = glm::scale(modelview, glm::vec3(Scale, Scale, Scale));
 
+    glm::vec3 current_cam = glm::row(modelview, 0);
+
     // set the fog parameters:
 
     if (DepthCueOn != 0)
@@ -488,42 +577,18 @@ Display()
 
     // possibly draw the axes:
 
-    //if (AxesOn != 0)
-    //{
-    //    glm::mat4 axis(1.f);
-    //    Uber->SetUniformVariable((char*)"uModel", axis);
-    //    //glColor3fv(&Colors[WhichColor][0]);
-    //    glCallList(AxesList);
-    //}
-
-    float theta = (2.f * (float)M_PI) * Time;
-    glm::mat4 model(1.f);
-
-    glm::vec3 light_translate[] = {
-        glm::vec3(3.f * (float)cos(2. * M_PI), 3.f, 3.f * (float)sin(2 * M_PI)),
-        glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f),
-        glm::vec3(-14.f * (float)cos(theta), -14.f * (float)sin(theta), -6.f),
-        glm::vec3(3.f * (float)sin(2. * M_PI), 3.f, 3.f * (float)cos(2 * M_PI)),
-    };
-
-    glm::vec3 light_color[] = {
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
-    };
-
-    glm::mat4 L0_td = glm::translate(model, light_translate[0]);
-    L0_td = glm::scale(L0_td, glm::vec3(0.5f));
-    glm::mat4 L1_td = glm::translate(model, light_translate[1]);
-    L1_td = glm::scale(L1_td, glm::vec3(0.5f));
-    glm::mat4 L2_td = glm::translate(model, light_translate[2]);
-    L2_td = glm::scale(L2_td, glm::vec3(0.5f));
-    glm::mat4 L3_td = glm::translate(model, light_translate[3]);
-    L3_td = glm::scale(L3_td, glm::vec3(0.5f));
+    if (AxesOn != 0)
+    {
+        glm::mat4 axis(1.f);
+        Uber->SetUniformVariable((char*)"uModel", axis);
+        Uber->SetUniformVariable((char*)"albedo", 0.9f, 0.9f, 0.9f);
+        Uber->SetUniformVariable((char*)"metallic", 0.05f);
+        Uber->SetUniformVariable((char*)"roughness", 0.f);
+        glCallList(AxesList);
+    }
 
     Uber->SetUniformVariable((char*)"uView", modelview);
-    Uber->SetUniformVariable((char*)"uCamPos", look);
+    Uber->SetUniformVariable((char*)"uCamPos", current_cam);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
@@ -531,51 +596,25 @@ Display()
     glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, brdf);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, shadowColorMap);
 
     // draw the current object:
 
-    //glm::mat4 torus(1.);
-
-    //torus = glm::rotate(torus, glm::radians(88.9999f * (float)sin(theta / 2)), glm::vec3(1.f, 0.f, 0.f));
-    //torus = glm::translate(torus, glm::vec3(-11.5f, 4.f, -9.f));
-    ////torus = glm::rotate(torus, D2R * 90.f, glm::vec3(1., 0., 0.));
-
-    //Uber->SetUniformVariable((char*)"metallic", 1.0f);
-    //Uber->SetUniformVariable((char*)"roughness", .1f);
-    //Uber->SetUniformVariable((char*)"uModel", torus);
-    //glutSolidTorus(2., 4., 70, 70);
-
-    glm::mat4 objfile(1.f);
+    //glm::mat4 objfile(1.f);
 
     //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
     //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(1.f, 0.f, 0.f));
     //objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
-    objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
+    //objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
 
-    Uber->SetUniformVariable((char*)"metallic", 0.94f);
-    Uber->SetUniformVariable((char*)"roughness", 0.13f);
+    //RenderWithShadows->SetUniformVariable((char*)"uColor", objcolor);
+    //RenderWithShadows->SetUniformVariable((char*)"uModel", objfile);
+    Uber->SetUniformVariable((char*)"albedo", 0.8f, 0.2f, 0.2f);
+    Uber->SetUniformVariable((char*)"metallic", 0.84f);
+    Uber->SetUniformVariable((char*)"roughness", 0.14f);
     Uber->SetUniformVariable((char*)"uModel", objfile);
     minicooperObj->Draw();
-
-   /* glm::mat4 globe(1.f);
-
-    globe = glm::translate(globe, glm::vec3(-1.f, 5.f, -3.f));*/
-    //globe = glm::rotate(globe, D2R * 90.f, glm::vec3(1.f, 0.f, 0.f));
-
-    //glEnable(GL_TEXTURE_2D);
-
-    /*glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_2D, Tex0);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-    Uber->SetUniformVariable((char*)"metallic", 0.f);
-    Uber->SetUniformVariable((char*)"roughness", 0.05f);
-    Uber->SetUniformVariable((char*)"uModel", globe);
-    OsuSphere(1.f, 360, 55);
-
-    glBindTexture(GL_TEXTURE_2D, 0);*/
-
-    //glDisable(GL_TEXTURE_2D);
 
     Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
     Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
@@ -607,6 +646,7 @@ Display()
     Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
     Back->SetUniformVariable((char*)"uenvMap", 0);
+    Back->SetUniformVariable((char*)"uExpose", 2.6f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
@@ -878,7 +918,7 @@ InitMenus()
 
     int mainmenu = glutCreateMenu(DoMainMenu);
     glutAddSubMenu("Axes", axesmenu);
-    glutAddSubMenu("Colors", colormenu);
+    //glutAddSubMenu("Colors", colormenu);
 
 #ifdef DEMO_DEPTH_BUFFER
     glutAddSubMenu("Depth Buffer", depthbuffermenu);
@@ -897,7 +937,10 @@ InitMenus()
 #endif
 
     glutAddMenuEntry("Reset", RESET);
+#ifdef _DEBUG
     glutAddSubMenu("Debug", debugmenu);
+#endif // DEBUG
+
     glutAddMenuEntry("Quit", QUIT);
 
     // attach the pop-up menu to the right mouse button:
@@ -913,6 +956,7 @@ InitMenus()
 void
 InitGraphics()
 {
+    glutSetOption(GLUT_MULTISAMPLE, 8);
     // request the display modes:
     // ask for red-green-blue-alpha color, double-buffering, and z-buffering:
 
@@ -988,8 +1032,14 @@ InitGraphics()
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif // DEBUG
 
+    glEnable(GL_MULTISAMPLE);
+    glFrontFace(GL_CCW);
+    glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
     glDepthFunc(GL_LEQUAL);
+    //glEnable(GL_BLEND);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     //glEnable(GL_NORMALIZE);
 
@@ -1017,7 +1067,7 @@ InitGraphics()
     minicooperObj = new VertexBufferObject();
     minicooperObj->CollapseCommonVertices(false);
     minicooperObj->glBegin(GL_TRIANGLES);
-    LoadObjFile((char*)"assets\\70M_90.obj", minicooperObj);
+    LoadObjFile((char*)"assets\\skyscanner_100.obj", minicooperObj);
     minicooperObj->glEnd();
 
 #ifndef _DEBUG
@@ -1146,15 +1196,71 @@ InitGraphics()
 #endif // _DEBUG
     Uber->SetVerbose(false);
 
+    GetDepth = new GLSLProgram();
+    valid = GetDepth->Create((char*)"shaders\\GetDepth.vert", (char*)"shaders\\GetDepth.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "GetDepth Shader cannot be created!\n");		//DoMainMenu(QUIT);
+    }
+    else
+    {
+        fprintf(stderr, "GetDepth Shader created successfully.\n");
+    }
+#endif // _DEBUG
+    GetDepth->SetVerbose(false);
+
+    RenderWithShadows = new GLSLProgram();
+    valid = RenderWithShadows->Create((char*)"shaders\\RenderWithShadows.vert", (char*)"shaders\\RenderWithShadows.frag");
+#ifdef _DEBUG
+    if (!valid)
+    {
+        fprintf(stderr, "RenderWithShadows Shader cannot be created!\n");
+    }
+    else
+    {
+        fprintf(stderr, "RenderWithShadows Shader created successfully.\n");
+    }
+#endif // _DEBUG
+    RenderWithShadows->SetVerbose(false);
+
+    glGenFramebuffers(1, &depthMap);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
+
+    glGenTextures(1, &shadowMap);
+    glBindTexture(GL_TEXTURE_2D, shadowMap);
+
+    glTexImage2D(shadowMap, 0, GL_DEPTH_COMPONENT32, shadows[0], shadows[1], 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+    glGenTextures(1, &shadowColorMap);
+    glBindTexture(GL_TEXTURE_2D, shadowColorMap);
+
+    glTexImage2D(shadowColorMap, 0, GL_RG32F, shadows[0], shadows[1], 0, GL_RGBA, GL_FLOAT, nullptr);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadowColorMap, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     Uber->Use();
     Uber->SetUniformVariable((char*)"albedo", 0.5f, 0.25f, 0.2f);
-    Uber->SetUniformVariable((char*)"ao", 1.0f);
+    Uber->SetUniformVariable((char*)"ao", 1.f);
+    Uber->SetUniformVariable((char*)"uExpose", 2.3f);
     Uber->Use(0);
 
     // Init the Texture
     // Texture BMP found at:
     // http://www.cbliss.com/inventor/Textures/index.htm
-    Texture = BmpToTexture((char *)"assets\\worldtex.bmp", &width, &height);
+    /*Texture = BmpToTexture((char *)"assets\\worldtex.bmp", &width, &height);
 
     glPixelStoref(GL_UNPACK_ALIGNMENT, 1);
     glGenTextures(1, &Tex0);
@@ -1166,7 +1272,7 @@ InitGraphics()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, Texture);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);*/
 
     glGenFramebuffers(1, &framebuf);
     glGenRenderbuffers(1, &renderbuf);
@@ -1174,7 +1280,7 @@ InitGraphics()
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
 
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 2048, 2048);
     glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
     
     // Init the Env HDR
@@ -1198,7 +1304,7 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 1024, 1024, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 2048, 2048, 0, GL_RGB, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1223,7 +1329,7 @@ InitGraphics()
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, envMapTexture);
-    glViewport(0, 0, 1024, 1024);
+    glViewport(0, 0, 2048, 2048);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     for (int i = 0; i < 6; ++i)
     {
@@ -1245,7 +1351,7 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 64, 64, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1256,7 +1362,7 @@ InitGraphics()
 
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 64, 64);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
 
     // pbr: solve diffuse integral by convolution to create an irradiance (cube)map.
     // -----------------------------------------------------------------------------
@@ -1266,7 +1372,7 @@ InitGraphics()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
 
-    glViewport(0, 0, 64, 64); // don't forget to configure the viewport to the capture dimensions.
+    glViewport(0, 0, 128, 128); // don't forget to configure the viewport to the capture dimensions.
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -1285,7 +1391,7 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 256, 256, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1308,8 +1414,8 @@ InitGraphics()
     for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
     {
         // reisze framebuffer according to mip-level size.
-        unsigned int mipWidth = 256 * std::pow(0.5, mip);
-        unsigned int mipHeight = 256 * std::pow(0.5, mip);
+        unsigned int mipWidth = 512 * (unsigned int)std::pow(0.5f, mip);
+        unsigned int mipHeight = 512 * (unsigned int)std::pow(0.5f, mip);
         glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
         glViewport(0, 0, mipWidth, mipHeight);
@@ -1530,18 +1636,6 @@ Keyboard(unsigned char c, int x, int y)
 
     switch (c)
     {
-    case '0':
-        Light0On = !Light0On;
-        break;
-
-    case '1':
-        Light1On = !Light1On;
-        break;
-
-    case '2':
-        Light2On = !Light2On;
-        break;
-
     case 'o':
     case 'O':
         WhichProjection = ORTHO;
@@ -1695,7 +1789,6 @@ Reset()
     WhichColor = WHITE;
     WhichProjection = PERSP;
     Xrot = Yrot = 0.;
-    Light0On = Light1On = Light2On = true;
     Frozen = false;
 }
 
@@ -2178,91 +2271,6 @@ HsvRgb(float hsv[3], float rgb[3])
     rgb[2] = b;
 }
 
-// void
-// Cross(float v1[3], float v2[3], float vout[3])
-// {
-//     float tmp[3];
-//     tmp[0] = v1[1] * v2[2] - v2[1] * v1[2];
-//     tmp[1] = v2[0] * v1[2] - v1[0] * v2[2];
-//     tmp[2] = v1[0] * v2[1] - v2[0] * v1[1];
-//     vout[0] = tmp[0];
-//     vout[1] = tmp[1];
-//     vout[2] = tmp[2];
-// }
-
-// float
-// Dot(float v1[3], float v2[3])
-// {
-//     return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
-// }
-
-// float
-// Unit(float vin[3], float vout[3])
-// {
-//     float dist = vin[0] * vin[0] + vin[1] * vin[1] + vin[2] * vin[2];
-//     if (dist > 0.0)
-//     {
-//         dist = sqrtf(dist);
-//         vout[0] = vin[0] / dist;
-//         vout[1] = vin[1] / dist;
-//         vout[2] = vin[2] / dist;
-//     }
-//     else
-//     {
-//         vout[0] = vin[0];
-//         vout[1] = vin[1];
-//         vout[2] = vin[2];
-//     }
-//     return dist;
-// }
-
-float*
-Array3(float a, float b, float c)
-{
-    static float array[4];
-
-    array[0] = a;
-    array[1] = b;
-    array[2] = c;
-    array[3] = 1.;
-    return array;
-}
-
-float*
-Array4(float a, float b, float c, float d)
-{
-    static float array[4];
-
-    array[0] = a;
-    array[1] = b;
-    array[2] = c;
-    array[3] = d;
-    return array;
-}
-
-float*
-BlendArray3(float factor, float array0[3], float array1[3])
-{
-    static float array[4];
-
-    array[0] = factor * array0[0] + (1.f - factor) * array1[0];
-    array[1] = factor * array0[1] + (1.f - factor) * array1[1];
-    array[2] = factor * array0[2] + (1.f - factor) * array1[2];
-    array[3] = 1.;
-    return array;
-}
-
-float*
-MulArray3(float factor, float array0[3])
-{
-    static float array[4];
-
-    array[0] = factor * array0[0];
-    array[1] = factor * array0[1];
-    array[2] = factor * array0[2];
-    array[3] = 1.;
-    return array;
-}
 unsigned int quadVAO = 0;
 unsigned int quadVBO;
 void renderQuad()
@@ -2310,7 +2318,7 @@ void renderSphere()
 
         const unsigned int X_SEGMENTS = 64;
         const unsigned int Y_SEGMENTS = 64;
-        const float PI = 3.14159265359;
+        const float PI = 3.14159265359f;
         for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
         {
             for (unsigned int y = 0; y <= Y_SEGMENTS; ++y)
