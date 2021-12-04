@@ -38,3 +38,4 @@ Release/
 !glew32.lib
 !glew32s.lib
 *.docx
+!skyscanner_100.*
