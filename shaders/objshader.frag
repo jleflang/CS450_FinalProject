@@ -4,6 +4,7 @@ layout (location = 0) out vec4 FragColor;
 layout (location = 0) in vec2 vTexCoords;
 layout (location = 1) in vec3 vPos;
 layout (location = 2) in vec3 vNormal;
+layout (location = 3) in vec4 vFragPosLightSpace;
 
 // material parameters
 uniform vec3 albedo;
@@ -11,9 +12,12 @@ uniform float metallic;
 uniform float roughness;
 uniform float ao;
 
+uniform float uExpose;
+
 layout (binding = 0) uniform samplerCube iemMap;
 layout (binding = 1) uniform samplerCube prefilMap;
 layout (binding = 2) uniform sampler2D brdfLUT;
+layout (binding = 3) uniform sampler2D shadowMap;
 
 uniform vec3 uCamPos;
 
@@ -22,6 +26,43 @@ uniform vec3 lightPositions[4];
 uniform vec3 lightColors[4];
 
 const float PI = 3.14159265359;
+const float A = 6.2;
+
+// ----------------------------------------------------------------------------
+// Piecewise linear interpolation
+float linstep(const float low, const float high, const float value) {
+    return clamp((value - low) / (high - low), 0.0, 1.0);
+}
+
+// ----------------------------------------------------------------------------
+// Variance shadow mapping
+float ComputeShadow(const vec4 fragPosLightSpace) {
+    // Perspective divide
+    vec2 screenCoords = fragPosLightSpace.xy / fragPosLightSpace.w;
+    screenCoords = screenCoords * 0.5 + 0.5; // [0, 1]
+
+    const float distance = fragPosLightSpace.z; // Use raw distance instead of linear junk
+    const vec2 moments = texture2D(shadowMap, screenCoords.xy).rg;
+
+    const float p = step(distance, moments.x);
+    const float variance = max(moments.y - (moments.x * moments.x), 0.00002);
+    const float d = distance - moments.x;
+    const float pMax = linstep(0.2, 1.0, variance / fma(d, d, variance)); // Solve light bleeding
+
+   return min(max(p, pMax), 1.0);
+}
+
+vec3 
+tonemapFilmic(vec3 x) 
+{
+  vec3 X = max(vec3(0.0), x - 0.004);
+  vec3 AX = A * X;
+  AX *= X;
+  vec3 result = fma(X, vec3(0.5), AX);
+  vec3 X2 = fma(X, vec3(1.7), AX);
+  result /= (X2 + 0.06);
+  return pow(result, vec3(2.2));
+}
 // ----------------------------------------------------------------------------
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -72,7 +113,9 @@ void main()
 {		
     vec3 N = vNormal;
     vec3 V = normalize(uCamPos-vPos);
-    vec3 R = reflect(-V, N); 
+    vec3 R = reflect(V, -N); 
+	
+	const float shadow = ComputeShadow(vFragPosLightSpace);
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
@@ -93,11 +136,11 @@ void main()
         // Cook-Torrance BRDF
         float NDF = DistributionGGX(N, H, roughness);   
         float G   = GeometrySmith(N, V, L, roughness);      
-        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
+        vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 numerator    = NDF * G * F; 
         float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0); 
-        vec3 specular = numerator / max(denominator, 0.000001);
+        vec3 specular = numerator / max(denominator, 0.001);
         
         // kS is equal to Fresnel
         vec3 kS = F;
@@ -111,10 +154,10 @@ void main()
         kD *= 1.0 - metallic;	  
 
         // scale light by NdotL
-        float NdotL = max(dot(N, L), 0.0);        
+        float NdotL = max(dot(N, L), 0.0);    
 
         // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+        Lo += (kD * albedo / PI + specular) * radiance * shadow * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
     }
 
 	// ambient lighting (we now use IBL as the ambient term)
@@ -131,16 +174,17 @@ void main()
     const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(prefilMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
     vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);	
+    vec3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);	
     
-    vec3 ambient = (kD * diffuse + specular) * ao;
+    vec3 ambient = kD * diffuse + specular * ao;
     
     vec3 color = ambient + Lo;
 
     // HDR tonemapping
-    color = color / (color + vec3(1.0));
+	color = tonemapFilmic(color * uExpose);	
+    //color = color / (color + vec3(1.0));
     // gamma correct
-    color = pow(color, vec3(0.454545454545)); 
-
+    //color = pow(color, vec3(0.454545454545));
+    
     FragColor = vec4(color, 1.0);
 }

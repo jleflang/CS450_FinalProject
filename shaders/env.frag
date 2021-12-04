@@ -1,8 +1,8 @@
-#version 330 compatibility
-out vec4 FragColor;
-in vec3 vPos;
+#version 460
+layout (location = 0) out vec4 FragColor;
+layout (location = 0) in vec3 vPos;
 
-uniform sampler2D uenvMap;
+layout (binding = 0) uniform sampler2D uenvMap;
 
 const vec2 invAtan = vec2(0.1591, 0.3183);
 
