@@ -160,16 +160,19 @@ xcopy /y /s /e $(SolutionDir)shaders\ $(OutputPath)shaders\</Command>
   <ItemGroup>
     <ClCompile Include="glslprogram.cpp" />
     <ClCompile Include="leflangj_finalproject.cpp" />
+    <ClCompile Include="loadmtlfile.cpp" />
     <ClCompile Include="loadobjfile.cpp" />
     <ClCompile Include="vertexbufferobject.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="includes\common.h" />
     <ClInclude Include="includes\freeglut.h" />
     <ClInclude Include="includes\freeglut_ext.h" />
     <ClInclude Include="includes\freeglut_std.h" />
     <ClInclude Include="includes\glew.h" />
     <ClInclude Include="includes\glslprogram.h" />
     <ClInclude Include="includes\glut.h" />
+    <ClInclude Include="includes\loadmtlfile.h" />
     <ClInclude Include="includes\loadobjfile.h" />
     <ClInclude Include="includes\stb_image.h" />
     <ClInclude Include="includes\vertexbufferobject.h" />

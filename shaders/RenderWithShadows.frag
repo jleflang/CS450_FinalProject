@@ -1,4 +1,4 @@
-#version 460
+#version 450
 
 uniform vec3      uColor;
 layout (binding = 10) uniform sampler2D uShadowMap;

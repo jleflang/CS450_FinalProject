@@ -1,14 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-
-#define _USE_MATH_DEFINES
-#include <math.h>
-
-#ifdef WIN32
-#include <windows.h>
-#pragma warning(disable:4996)
-#endif
+#include "common.h"
+#include <set>
 
 #define GLEW_STATIC
 #include "glew.h"
@@ -21,6 +12,16 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+// Provided Code
+#include "glslprogram.h"
+#include "loadobjfile.h"
+#include "vertexbufferobject.h"
+
+
+// My code
+#include "loadmtlfile.h"
+
+#ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_BMP
 #define STBI_NO_PSD
@@ -28,11 +29,7 @@
 #define STBI_NO_PIC
 #define STBI_NO_PNM
 #include "stb_image.h"
-
-// Provided Code
-#include "glslprogram.h"
-#include "loadobjfile.h"
-#include "vertexbufferobject.h"
+#endif // !STB_IMAGE_IMPLEMENTATION
 
 
 //	This code is mostly taken from the sample OpenGL / GLUT program
@@ -239,9 +236,19 @@ GLuint depthMap;
 GLuint shadowMap;
 GLuint shadowColorMap;
 
+struct objtex_maps
+{
+    std::string name;
+    GLuint diffuse, rough, reflect, norm;
+};
+
+std::vector<struct objtex_maps> objtextures;
+
 VertexBufferObject* envCubeObj;
-VertexBufferObject* minicooperObj;
+std::vector<VertexBufferObject*> telescopeObj;
 VertexBufferObject* brdfQuad;
+
+MaterialSet* materiallib;
 
 const unsigned int shadows[2] = 
 {
@@ -467,7 +474,8 @@ Display()
     //objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
    
     GetDepth->SetUniformVariable((char*)"uModel", objfile);
-    minicooperObj->Draw();
+    for (auto obj : telescopeObj)
+        obj->Draw();
 
     GetDepth->SetUniformVariable((char*)"uModel", L0_td);
     renderSphere();
@@ -489,7 +497,7 @@ Display()
     glDrawBuffer(GL_BACK);
     glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
+    //glEnable(GL_DEPTH_TEST);
     glShadeModel(GL_SMOOTH);
     glEnable(GL_NORMALIZE);
 
@@ -523,10 +531,6 @@ Display()
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
     Uber->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
-    Uber->SetUniformVariable((char*)"iemMap", 0);
-    Uber->SetUniformVariable((char*)"prefilMap", 1);
-    Uber->SetUniformVariable((char*)"brdfLUT", 2);
-    Uber->SetUniformVariable((char*)"shadowMap", 10);
 
     //Back->Use();
     
@@ -577,7 +581,7 @@ Display()
 
     // possibly draw the axes:
 
-    if (AxesOn != 0)
+    /*if (AxesOn != 0)
     {
         glm::mat4 axis(1.f);
         Uber->SetUniformVariable((char*)"uModel", axis);
@@ -585,18 +589,18 @@ Display()
         Uber->SetUniformVariable((char*)"metallic", 0.05f);
         Uber->SetUniformVariable((char*)"roughness", 0.f);
         glCallList(AxesList);
-    }
+    }*/
 
     Uber->SetUniformVariable((char*)"uView", modelview);
     Uber->SetUniformVariable((char*)"uCamPos", current_cam);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, brdf);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter);
     glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, brdf);
+    glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, shadowColorMap);
 
     // draw the current object:
@@ -610,11 +614,38 @@ Display()
 
     //RenderWithShadows->SetUniformVariable((char*)"uColor", objcolor);
     //RenderWithShadows->SetUniformVariable((char*)"uModel", objfile);
-    Uber->SetUniformVariable((char*)"albedo", 0.8f, 0.2f, 0.2f);
-    Uber->SetUniformVariable((char*)"metallic", 0.84f);
-    Uber->SetUniformVariable((char*)"roughness", 0.14f);
-    Uber->SetUniformVariable((char*)"uModel", objfile);
-    minicooperObj->Draw();
+    
+    for (auto obj : telescopeObj)
+    {
+        std::string cur_mat = obj->GetMaterial();
+        GLuint dif = NULL, refl = NULL, rough = NULL, normal = NULL;
+
+        for (objtex_maps &textures : objtextures)
+        {
+            if (textures.name == cur_mat)
+            {
+                dif = textures.diffuse;
+                rough = textures.rough;
+                refl = textures.reflect;
+                normal = textures.norm;
+            }
+
+            continue;
+        }
+
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, dif);
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_2D, rough);
+        glActiveTexture(GL_TEXTURE7);
+        glBindTexture(GL_TEXTURE_2D, refl);
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, normal);
+
+        Uber->SetUniformVariable((char*)"uModel", objfile);
+        obj->Draw();
+    }
+        
 
     Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
     Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
@@ -653,9 +684,9 @@ Display()
 
     Back->Use(0);
 
-    //Brdf->Use();
-    //renderQuad();
-    //Brdf->UnUse();
+    /*Brdf->Use();
+    renderQuad();
+    Brdf->UnUse();*/
 
 
     // #ifdef DEMO_Z_FIGHTING
@@ -957,10 +988,11 @@ void
 InitGraphics()
 {
     glutSetOption(GLUT_MULTISAMPLE, 8);
+
     // request the display modes:
     // ask for red-green-blue-alpha color, double-buffering, and z-buffering:
 
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
 
     // set the initial window configuration:
 
@@ -1032,14 +1064,18 @@ InitGraphics()
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif // DEBUG
 
+#ifdef _DEBUG
+    glEnable(GL_ARB_debug_output);
+#endif
+
     glEnable(GL_MULTISAMPLE);
     glFrontFace(GL_CCW);
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LEQUAL);
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     //glEnable(GL_NORMALIZE);
 
@@ -1064,17 +1100,12 @@ InitGraphics()
     envCubeObj->SetVerbose(true);
 #endif // !_DEBUG
 
-    minicooperObj = new VertexBufferObject();
-    minicooperObj->CollapseCommonVertices(false);
-    minicooperObj->glBegin(GL_TRIANGLES);
-    LoadObjFile((char*)"assets\\skyscanner_100.obj", minicooperObj);
-    minicooperObj->glEnd();
-
-#ifndef _DEBUG
-    minicooperObj->SetVerbose(false);
-#else
-    minicooperObj->SetVerbose(true);
-#endif // !_DEBUG
+    //telescopeObj = new VertexBufferObject();
+    //telescopeObj->CollapseCommonVertices(false);
+    //telescopeObj->glBegin(GL_TRIANGLES);
+    materiallib = new MaterialSet();
+    LoadObjFile((char*)"assets\\skyscanner_100_edit.obj", &telescopeObj, materiallib);
+    //telescopeObj->glEnd();
 
     //glShadeModel(GL_FLAT);
     //glDisable(GL_NORMALIZE);
@@ -1106,12 +1137,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "Background Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "Background Shader created.\n");
     }
 #endif // _DEBUG
     Back->SetVerbose(false);
@@ -1122,12 +1153,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "Environment Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "Environment Shader created.\n");
     }
 #endif // _DEBUG
     Environment->SetVerbose(false);
@@ -1138,12 +1169,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "IEM Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "IEM Shader created.\n");
     }
 #endif // _DEBUG
     Iem->SetVerbose(false);
@@ -1154,12 +1185,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "Prefilter Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "Prefilter Shader created.\n");
     }
 #endif // _DEBUG
     Prefilter->SetVerbose(false);
@@ -1170,12 +1201,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "BRDF Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "BRDF Shader created.\n");
     }
 #endif // _DEBUG
     Brdf->SetVerbose(false);
@@ -1186,12 +1217,12 @@ InitGraphics()
 #ifdef _DEBUG
     if (!valid)
     {
-        fprintf(stderr, "Shader cannot be created!\n");
+        fprintf(stderr, "Uber Shader cannot be created!\n");
         DoMainMenu(QUIT);
     }
     else
     {
-        fprintf(stderr, "Shader created.\n");
+        fprintf(stderr, "Uber Shader created.\n");
     }
 #endif // _DEBUG
     Uber->SetVerbose(false);
@@ -1252,27 +1283,9 @@ InitGraphics()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     Uber->Use();
-    Uber->SetUniformVariable((char*)"albedo", 0.5f, 0.25f, 0.2f);
     Uber->SetUniformVariable((char*)"ao", 1.f);
     Uber->SetUniformVariable((char*)"uExpose", 2.3f);
     Uber->Use(0);
-
-    // Init the Texture
-    // Texture BMP found at:
-    // http://www.cbliss.com/inventor/Textures/index.htm
-    /*Texture = BmpToTexture((char *)"assets\\worldtex.bmp", &width, &height);
-
-    glPixelStoref(GL_UNPACK_ALIGNMENT, 1);
-    glGenTextures(1, &Tex0);
-    glBindTexture(GL_TEXTURE_2D, Tex0);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, Texture);
-    glBindTexture(GL_TEXTURE_2D, 0);*/
 
     glGenFramebuffers(1, &framebuf);
     glGenRenderbuffers(1, &renderbuf);
@@ -1284,7 +1297,8 @@ InitGraphics()
     glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
     
     // Init the Env HDR
-    stbi_set_flip_vertically_on_load(true);
+    // Set STBI to flip images for texture loading
+    stbi_set_flip_vertically_on_load(1);
     float* envImage = stbi_loadf((char*)"assets\\LA_Downtown_Helipad_GoldenHour_3k.hdr", &envW, &envH, &nrComp, 0);
     if (envImage)
     {
@@ -1458,9 +1472,71 @@ InitGraphics()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     renderQuad();
     //brdfQuad->Draw();
-    Brdf->UnUse();
+    Brdf->Use(0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    for (struct mat matter : materiallib->obj_mats)
+    {
+        struct objtex_maps cur_maps = { };
+        struct Texture curtex;
+
+        cur_maps.name = matter.n;
+
+        curtex = *matter.m->LoadKd();
+
+        glGenTextures(1, &cur_maps.diffuse);
+        glBindTexture(GL_TEXTURE_2D, cur_maps.diffuse);
+
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(cur_maps.diffuse, 0, GL_RGB8, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_BYTE, curtex.img);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.diffuse, 0);
+
+        curtex = *matter.m->LoadNs();
+
+        glGenTextures(1, &cur_maps.rough);
+        glBindTexture(GL_TEXTURE_2D, cur_maps.rough);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(cur_maps.rough, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.rough, 0);
+
+        curtex = *matter.m->LoadRefl();
+
+        glGenTextures(1, &cur_maps.reflect);
+        glBindTexture(GL_TEXTURE_2D, cur_maps.reflect);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(cur_maps.reflect, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.reflect, 0);
+
+        curtex = *matter.m->LoadNorm();
+
+        glGenTextures(1, &cur_maps.norm);
+        glBindTexture(GL_TEXTURE_2D, cur_maps.norm);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(cur_maps.norm, 0, GL_RGB16, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_SHORT, curtex.img16);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.norm, 0);
+
+        objtextures.push_back(cur_maps);
+
+    }
 }
 
 

@@ -118,7 +118,7 @@ VertexBufferObject::Draw( )
 		glUnmapBuffer( GL_ARRAY_BUFFER );
 		parray = NULL;
 
-		/*glGenBuffers( 1, &ebuffer );
+		glGenBuffers( 1, &ebuffer );
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebuffer );
 		glBufferData( GL_ELEMENT_ARRAY_BUFFER, numElements * sizeof(GLuint), NULL, GL_STATIC_DRAW );
 		earray = (GLuint *) glMapBuffer( GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY );
@@ -127,7 +127,7 @@ VertexBufferObject::Draw( )
 			earray[i] = ElementVec[i];
 		}
 		glUnmapBuffer( GL_ELEMENT_ARRAY_BUFFER );
-		earray = NULL;*/
+		earray = NULL;
 
 		isFirstDraw = false;
 	}
@@ -136,20 +136,18 @@ VertexBufferObject::Draw( )
 	if( collapseCommonVertices )
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebuffer );
 
-	
 
-
-	/*if( collapseCommonVertices || restartFound )
+	if( collapseCommonVertices || restartFound )
 	{
 		glDrawElements( topology, numElements, GL_UNSIGNED_INT, BUFFER_OFFSET( 0 ) );
 	}
-	else*/
-	//{
-		glDrawArrays( topology, 0, numPoints );
-	//}
+	else
+	{
+		glDrawArrays( topology, 0, numPoints);
+	}
 
 	glBindVertexArray( 0 );
-	//glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
+	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
 
 	//glDisableClientState( GL_VERTEX_ARRAY );
 	//glDisableClientState( GL_NORMAL_ARRAY );
@@ -157,6 +155,17 @@ VertexBufferObject::Draw( )
 	//glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 }
 
+std::string
+VertexBufferObject::GetMaterial()
+{
+	return material;
+}
+
+void
+VertexBufferObject::SetMaterial(char* mat)
+{
+	material.append(mat);
+}
 
 void
 VertexBufferObject::glBegin( GLenum _topology )
@@ -301,8 +310,8 @@ VertexBufferObject::Reset( )
 {
 	isFirstDraw = true;
 	hasVertices = hasNormals = hasColors = hasTexCoords = false;
-	//glPrimitiveRestartIndex( VertexBufferObject::RESTART_INDEX );
-	//glEnable( GL_PRIMITIVE_RESTART );
+	glPrimitiveRestartIndex( VertexBufferObject::RESTART_INDEX );
+	glEnable( GL_PRIMITIVE_RESTART );
 	if( parray != NULL )
 	{
 		delete [ ] parray;

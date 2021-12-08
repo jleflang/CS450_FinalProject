@@ -38,10 +38,12 @@ float	Unit(float[3], float[3]);
 
 
 int
-LoadObjFile(char* name, VertexBufferObject *object)
+LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *matlib)
 {
 	char* cmd;		// the command string
 	char* str;		// argument string
+
+	VertexBufferObject *cur_object_g = NULL;
 
 	std::vector <struct Vertex> Vertices(10000);
 	std::vector <struct Normal> Normals(10000);
@@ -93,15 +95,8 @@ LoadObjFile(char* name, VertexBufferObject *object)
 		if (line[0] == 'g')
 			continue;
 
-		if (line[0] == 'm')
-			continue;
-
 		if (line[0] == 's')
 			continue;
-
-		if (line[0] == 'u')
-			continue;
-
 
 		// get the command string:
 
@@ -112,6 +107,59 @@ LoadObjFile(char* name, VertexBufferObject *object)
 
 		if (cmd == NULL)
 			continue;
+
+
+		if (strcmp(cmd, "mtllib") == 0)
+		{
+			std::string dir ("assets\\");
+			str = strtok(NULL, (char*)"\n");
+			dir.append(str);
+
+			if (matlib->LoadMtlFile((char *)dir.c_str()) == 0)
+			{
+#ifdef _DEBUG
+				fprintf(stderr, "Texture file loaded: %s\n", (char*)dir.c_str());
+#endif
+			}
+			else
+			{
+#ifdef _DEBUG
+				fprintf(stderr, "Texture file failed to load: %s\n", (char*)dir.c_str());
+#endif
+			}
+
+			continue;
+
+		}
+
+
+		// Push and create a new VBO
+		if (strcmp(cmd, "o") == 0)
+		{
+			if (cur_object_g != NULL)
+			{
+				object->push_back(cur_object_g);
+				cur_object_g = NULL;
+			}
+
+			cur_object_g = new VertexBufferObject();
+
+			cur_object_g->CollapseCommonVertices(false);
+			cur_object_g->glBegin(GL_TRIANGLES);
+
+			cur_object_g->SetVerbose(false);
+
+		}
+
+		if (strcmp(cmd, "usemtl") == 0)
+		{
+			str = strtok(NULL, (char*)"\n");
+
+			cur_object_g->SetMaterial(str);
+
+			continue;
+
+		}
 
 
 		if (strcmp(cmd, "v") == 0)
@@ -287,18 +335,18 @@ LoadObjFile(char* name, VertexBufferObject *object)
 				for (int vtx = 0; vtx < 3; vtx++)
 				{
 					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
-					object->glVertex3f(vp->x, vp->y, vp->z);
+					cur_object_g->glVertex3f(vp->x, vp->y, vp->z);
 
 					if (vertices[vv[vtx]].n != 0)
 					{
 						struct Normal* np = &Normals[vertices[vv[vtx]].n - 1];
-						object->glNormal3f(np->nx, np->ny, np->nz);
+						cur_object_g->glNormal3f(np->nx, np->ny, np->nz);
 					}
 
 					if (vertices[vv[vtx]].t != 0)
 					{
 						struct TextureCoord* tp = &TextureCoords[vertices[vv[vtx]].t - 1];
-						object->glTexCoord2f(tp->s, tp->t);
+						cur_object_g->glTexCoord2f(tp->s, tp->t);
 					}
 				}
 			}

@@ -1,23 +1,26 @@
-#version 460
+#version 450
 
 layout (location = 0) out vec4 FragColor;
-layout (location = 0) in vec2 vTexCoords;
+layout (location = 3) in vec2 vTexCoords;
 layout (location = 1) in vec3 vPos;
 layout (location = 2) in vec3 vNormal;
-layout (location = 3) in vec4 vFragPosLightSpace;
+layout (location = 4) in vec4 vFragPosLightSpace;
 
 // material parameters
-uniform vec3 albedo;
-uniform float metallic;
-uniform float roughness;
 uniform float ao;
-
 uniform float uExpose;
 
-layout (binding = 0) uniform samplerCube iemMap;
-layout (binding = 1) uniform samplerCube prefilMap;
-layout (binding = 2) uniform sampler2D brdfLUT;
-layout (binding = 3) uniform sampler2D shadowMap;
+// Environment textures
+layout (binding = 1) uniform samplerCube iemMap;
+layout (binding = 2) uniform samplerCube prefilMap;
+layout (binding = 3) uniform sampler2D brdfLUT;
+layout (binding = 4) uniform sampler2D shadowMap;
+
+// PBR textures
+layout (binding = 5) uniform sampler2D diffusetex;
+layout (binding = 6) uniform sampler2D roughtex;
+layout (binding = 7) uniform sampler2D metallictex;
+layout (binding = 8) uniform sampler2D normtex;
 
 uniform vec3 uCamPos;
 
@@ -28,6 +31,22 @@ uniform vec3 lightColors[4];
 const float PI = 3.14159265359;
 const float A = 6.2;
 
+vec3 getNormalFromMap()
+{
+    vec3 tangentNormal = texture(normtex, vTexCoords).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(vPos);
+    vec3 Q2  = dFdy(vPos);
+    vec2 st1 = dFdx(vTexCoords);
+    vec2 st2 = dFdy(vTexCoords);
+
+    vec3 N   = vNormal;
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+    return normalize(TBN * tangentNormal);
+}
 // ----------------------------------------------------------------------------
 // Piecewise linear interpolation
 float linstep(const float low, const float high, const float value) {
@@ -42,12 +61,12 @@ float ComputeShadow(const vec4 fragPosLightSpace) {
     screenCoords = screenCoords * 0.5 + 0.5; // [0, 1]
 
     const float distance = fragPosLightSpace.z; // Use raw distance instead of linear junk
-    const vec2 moments = texture2D(shadowMap, screenCoords.xy).rg;
+    vec2 moments = texture(shadowMap, screenCoords).rg;
 
-    const float p = step(distance, moments.x);
-    const float variance = max(moments.y - (moments.x * moments.x), 0.00002);
-    const float d = distance - moments.x;
-    const float pMax = linstep(0.2, 1.0, variance / fma(d, d, variance)); // Solve light bleeding
+    float p = step(distance, moments.x);
+    float variance = max(moments.y - (moments.x * moments.x), 0.00002);
+    float d = distance - moments.x;
+    float pMax = linstep(0.2, 1.0, variance / fma(d, d, variance)); // Solve light bleeding
 
    return min(max(p, pMax), 1.0);
 }
@@ -111,16 +130,21 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 // ----------------------------------------------------------------------------
 void main()
 {		
-    vec3 N = vNormal;
+    vec3 N = getNormalFromMap();
     vec3 V = normalize(uCamPos-vPos);
-    vec3 R = reflect(V, -N); 
+    vec3 R = reflect(-V, N); 
 	
-	const float shadow = ComputeShadow(vFragPosLightSpace);
+	float shadow = ComputeShadow(vFragPosLightSpace);
+
+	vec3 tdiffuse	= pow(texture(diffusetex, vTexCoords).rgb, vec3(uExpose));
+	float tmetal	= texture(metallictex, vTexCoords).r;
+	float trough	= texture(roughtex, vTexCoords).r;
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
-    vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, albedo, metallic);
+    vec3 F0 = vec3(0.04);
+
+	F0 = mix(F0, tdiffuse, tmetal);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
@@ -134,13 +158,13 @@ void main()
         vec3 radiance = lightColors[i] * attenuation;
 
         // Cook-Torrance BRDF
-        float NDF = DistributionGGX(N, H, roughness);   
-        float G   = GeometrySmith(N, V, L, roughness);      
+		float NDF = DistributionGGX(N, H, trough);   
+		float G   = GeometrySmith(N, V, L, trough);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 numerator    = NDF * G * F; 
         float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0); 
-        vec3 specular = numerator / max(denominator, 0.001);
+        vec3 specular = numerator / max(denominator, 0.0001);
         
         // kS is equal to Fresnel
         vec3 kS = F;
@@ -151,32 +175,36 @@ void main()
         // multiply kD by the inverse metalness such that only non-metals 
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
-        kD *= 1.0 - metallic;	  
+		kD *= 1.0 - tmetal;
 
         // scale light by NdotL
         float NdotL = max(dot(N, L), 0.0);    
 
         // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * shadow * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+		// note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+		Lo += (kD * tdiffuse / PI + specular) * radiance * shadow * NdotL;
+
+        
     }
 
 	// ambient lighting (we now use IBL as the ambient term)
-    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+	vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, trough);
+
     
     vec3 kS = F;
     vec3 kD = 1.0 - kS;
-    kD *= 1.0 - metallic;	  
+	kD *= 1.0 - tmetal;
     
     vec3 irradiance = texture(iemMap, N).rgb;
-    vec3 diffuse      = irradiance * albedo;
+	vec3 diffuse    = irradiance * tdiffuse;
     
     // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor = textureLod(prefilMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+	vec3 prefilteredColor = textureLod(prefilMap, R,  trough * MAX_REFLECTION_LOD).rgb;    
+	vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), trough)).rg;
     vec3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);	
     
-    vec3 ambient = kD * diffuse + specular * ao;
+    vec3 ambient = (kD * diffuse + specular) * ao;
     
     vec3 color = ambient + Lo;
 

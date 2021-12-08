@@ -1,4 +1,4 @@
-#version 460
+#version 450
 layout (location = 0, index = 0) out vec2 FragColor;
 layout (location = 0) in vec2 TexCoords;
 

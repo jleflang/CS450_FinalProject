@@ -1,21 +1,12 @@
 #ifndef VERTEX_BUFFER_OBJECT_H
 #define VERTEX_BUFFER_OBJECT_H
 
-#ifdef WIN32
-#include "windows.h"
-#pragma warning(disable:4996)
-#endif
+#include "common.h"
 
 #define GLEW_STATIC
 #include "glew.h"
 #include "glut.h"
 #include <GL/gl.h>
-
-#include <stdio.h>
-#include <math.h>
-#include <string.h>
-#include <vector>
-#include <map>
 
 #define BUFFER_OFFSET(bytes)	( (GLubyte *)NULL + (bytes) )
 #define ELEMENT_OFFSET(a1,a2)	(  BUFFER_OFFSET( (char *)(a2) - (char *)(a1) )  )
@@ -70,6 +61,7 @@ class VertexBufferObject
 	float				c_r, c_g, c_b;
 	float				c_nx, c_ny, c_nz;
 	float				c_s, c_t;
+	std::string			material;
 
 	GLenum				topology;
 	bool				verbose;
@@ -98,6 +90,8 @@ class VertexBufferObject
     public:
 	void CollapseCommonVertices( bool );
 	void Draw( );
+	std::string GetMaterial();
+	void SetMaterial(char*);
 	void glBegin( GLenum );
 	//void glColor3f( GLfloat, GLfloat, GLfloat );
 	//void glColor3fv( GLfloat * );

@@ -8,7 +8,7 @@
 This project is intended to be compiled on a Windows machine with Visual Studio
     installed.
 
-HDR "shanghai_riverside_2k.hdr" found at https://polyhaven.com/hdris
+HDR "LA_Downtown_Helipad_GoldenHour_3k.hdr" found at https://polyhaven.com/hdris
 
 Third Party Tools
 -----------------
