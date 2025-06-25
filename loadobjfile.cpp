@@ -1,4 +1,4 @@
-#include "loadobjfile.h"
+#include "includes/loadobjfile.h"
 
 // delimiters for parsing the obj file:
 
@@ -60,8 +60,8 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 	// open the input file:
 
-	FILE* fp = fopen(name, "r");
-	if (fp == NULL)
+	FILE* fp = NULL;
+	if (fopen_s(&fp, name, "r") != 0)
 	{
 		fprintf(stderr, "Cannot open .obj file '%s'\n", name);
 		return 1;
@@ -99,8 +99,8 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 			continue;
 
 		// get the command string:
-
-		cmd = strtok(line, OBJDELIMS);
+		char* tokptr = NULL;
+		cmd = strtok_s(line, OBJDELIMS, &tokptr);
 
 
 		// skip this line if it is empty:
@@ -112,7 +112,7 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 		if (strcmp(cmd, "mtllib") == 0)
 		{
 			std::string dir ("assets\\");
-			str = strtok(NULL, (char*)"\n");
+			str = strtok_s(NULL, (char*)"\n", &tokptr);
 			dir.append(str);
 
 			if (matlib->LoadMtlFile((char *)dir.c_str()) == 0)
@@ -153,7 +153,7 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 		if (strcmp(cmd, "usemtl") == 0)
 		{
-			str = strtok(NULL, (char*)"\n");
+			str = strtok_s(NULL, (char*)"\n", &tokptr);
 
 			cur_object_g->SetMaterial(str);
 
@@ -164,13 +164,13 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 		if (strcmp(cmd, "v") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sv.x = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sv.y = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sv.z = atof(str);
 
 			Vertices.push_back(sv);
@@ -188,13 +188,13 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 		if (strcmp(cmd, "vn") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sn.nx = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sn.ny = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			sn.nz = atof(str);
 
 			Normals.push_back(sn);
@@ -207,14 +207,14 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 		{
 			st.s = st.t = st.p = 0.;
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			st.s = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			if (str != NULL)
 				st.t = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			if (str != NULL)
 				st.p = atof(str);
 
@@ -242,7 +242,7 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 			bool valid = true;
 			int vtx = 0;
 			char* str;
-			while ((str = strtok(NULL, OBJDELIMS)) != NULL)
+			while ((str = strtok_s(NULL, OBJDELIMS, &tokptr)) != NULL)
 			{
 				int v, n, t;
 				ReadObjVTN(str, &v, &t, &n);
@@ -486,24 +486,24 @@ ReadObjVTN(char* str, int* v, int* t, int* n)
 	if (strstr(str, "//"))				// v//n
 	{
 		*t = 0;
-		sscanf(str, "%d//%d", v, n);
+		sscanf_s(str, "%d//%d", v, n);
 		return;
 	}
-	else if (sscanf(str, "%d/%d/%d", v, t, n) == 3)	// v/t/n
+	else if (sscanf_s(str, "%d/%d/%d", v, t, n) == 3)	// v/t/n
 	{
 		return;
 	}
 	else
 	{
 		*n = 0;
-		if (sscanf(str, "%d/%d", v, t) == 2)		// v/t
+		if (sscanf_s(str, "%d/%d", v, t) == 2)		// v/t
 		{
 			return;
 		}
 		else						// v
 		{
 			*n = *t = 0;
-			sscanf(str, "%d", v);
+			sscanf_s(str, "%d", v);
 		}
 	}
 }

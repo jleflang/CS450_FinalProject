@@ -1,9 +1,9 @@
 #version 450
 
 layout (location = 0) out vec4 FragColor;
-layout (location = 3) in vec2 vTexCoords;
 layout (location = 1) in vec3 vPos;
 layout (location = 2) in vec3 vNormal;
+layout (location = 3) in vec2 vTexCoords;
 layout (location = 4) in vec4 vFragPosLightSpace;
 
 // material parameters
@@ -131,8 +131,8 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 void main()
 {		
     vec3 N = getNormalFromMap();
-    vec3 V = normalize(uCamPos-vPos);
-    vec3 R = reflect(-V, N); 
+    vec3 V = -normalize(uCamPos-vPos);
+    vec3 R = reflect(V, N); 
 	
 	float shadow = ComputeShadow(vFragPosLightSpace);
 

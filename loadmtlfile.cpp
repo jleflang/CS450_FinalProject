@@ -1,4 +1,4 @@
-#include "loadmtlfile.h"
+#include "includes/loadmtlfile.h"
 
 #define OBJDELIMS		" \t"
 #define WINEOL			"\n"
@@ -11,8 +11,9 @@ void Material::ReadImageTexture(char* img, int typ, int nchan)
     std::vector<Texture>::iterator cursor = textures->begin();
     cursor += typ;
 
-	char* front = strtok(img, (char*)"\\\\");
-	char* filename = strtok(NULL, WINEOL);
+	char* tokptr = NULL;
+	char* front = strtok_s(img, (char*)"\\\\", &tokptr);
+	char* filename = strtok_s(NULL, WINEOL, &tokptr);
 
 	std::string texture_dir("assets\\");
 	texture_dir.append(front);
@@ -101,8 +102,8 @@ int MaterialSet::LoadMtlFile(char* file)
 
 	bool isNewMat = true;
 
-    FILE *fp = fopen(file, "r");
-    if (fp == NULL)
+    FILE *fp = NULL;
+    if (fopen_s(&fp, file, "r") != 0)
         return 1;
 
     for (; ; )
@@ -125,7 +126,8 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		// get the command string:
 
-		cmd = strtok(line, OBJDELIMS);
+		char* tokptr = NULL;
+		cmd = strtok_s(line, OBJDELIMS, &tokptr);
 
 		// A new material is starting or its the a random newline
 		if (cmd == NULL)
@@ -141,7 +143,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "newmtl") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_mat.n.append(str);
 
 			isNewMat = false;
@@ -151,7 +153,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Ns") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ns = atof(str);
 
 			continue;
@@ -159,7 +161,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Ni") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ni = atof(str);
 
 			continue;
@@ -167,7 +169,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "d") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->d = atof(str);
 
 			continue;
@@ -175,7 +177,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "illum") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->illum = atoi(str);
 
 			continue;
@@ -183,7 +185,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "map_Kd") == 0)
 		{
-			str = strtok(NULL, WINEOL);
+			str = strtok_s(NULL, WINEOL, &tokptr);
 			cur_material->ReadKd(str);
 
 			continue;
@@ -191,7 +193,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "map_Ns") == 0)
 		{
-			str = strtok(NULL, WINEOL);
+			str = strtok_s(NULL, WINEOL, &tokptr);
 			cur_material->ReadNs(str);
 
 			continue;
@@ -199,7 +201,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "refl") == 0)
 		{
-			str = strtok(NULL, WINEOL);
+			str = strtok_s(NULL, WINEOL, &tokptr);
 			cur_material->ReadRefl(str);
 
 			continue;
@@ -207,7 +209,7 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "norm") == 0)
 		{
-			str = strtok(NULL, WINEOL);
+			str = strtok_s(NULL, WINEOL, &tokptr);
 			cur_material->ReadNorm(str);
 
 			continue;
@@ -215,13 +217,13 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Ka") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ka[0] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ka[1] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ka[2] = atof(str);
 
 			continue;
@@ -230,13 +232,13 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Kd") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Kd[0] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Kd[1] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Kd[2] = atof(str);
 
 			continue;
@@ -245,13 +247,13 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Ks") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ks[0] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ks[1] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ks[2] = atof(str);
 
 			continue;
@@ -260,13 +262,13 @@ int MaterialSet::LoadMtlFile(char* file)
 
 		if (strcmp(cmd, "Ke") == 0)
 		{
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ke[0] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ke[1] = atof(str);
 
-			str = strtok(NULL, OBJDELIMS);
+			str = strtok_s(NULL, OBJDELIMS, &tokptr);
 			cur_material->Ke[2] = atof(str);
 
 			continue;

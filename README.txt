@@ -13,8 +13,8 @@ HDR "LA_Downtown_Helipad_GoldenHour_3k.hdr" found at https://polyhaven.com/hdris
 Third Party Tools
 -----------------
 
-- GLM 0.9.9.8 (https://github.com/g-truc/glm/)
-- FreeGLUT 3.0.0.0 MSVC (https://www.transmissionzero.co.uk/software/freeglut-devel/)
+- GLM 1.0.1 (https://github.com/g-truc/glm/)
+- FreeGLUT 3.6.0.0 (https://github.com/freeglut/freeglut)
 - GLEW 2.2.0 (https://github.com/nigels-com/glew)
-- stb_image.h 2.27 (https://github.com/nothings/stb)
+- stb_image.h 2.30 (https://github.com/nothings/stb)
 

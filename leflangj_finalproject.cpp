@@ -1,25 +1,25 @@
-#include "common.h"
+#include "includes/common.h"
 #include <set>
 
 #define GLEW_STATIC
-#include "glew.h"
+#include "includes/glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "freeglut.h"
+#include "includes/freeglut.h"
 
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_access.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
+#include "glm/glm/glm.hpp"
+#include "glm/glm/gtc/matrix_access.hpp"
+#include "glm/glm/gtc/matrix_transform.hpp"
+#include "glm/glm/gtc/type_ptr.hpp"
 
 // Provided Code
-#include "glslprogram.h"
-#include "loadobjfile.h"
-#include "vertexbufferobject.h"
+#include "includes/glslprogram.h"
+#include "includes/loadobjfile.h"
+#include "includes/vertexbufferobject.h"
 
 
 // My code
-#include "loadmtlfile.h"
+#include "includes/loadmtlfile.h"
 
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -28,7 +28,7 @@
 #define STBI_NO_GIF
 #define STBI_NO_PIC
 #define STBI_NO_PNM
-#include "stb_image.h"
+#include "includes/stb_image.h"
 #endif // !STB_IMAGE_IMPLEMENTATION
 
 
@@ -378,6 +378,21 @@ main(int argc, char* argv[])
     // this line is here to make the compiler happy:
 
     return 0;
+}
+
+
+void GLAPIENTRY
+DebugOutput(GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar* message,
+    const void* userParam)
+{
+    fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
+        type, severity, message);
 }
 
 
@@ -1062,10 +1077,12 @@ InitGraphics()
     else
         fprintf(stderr, "GLEW initialized OK\n");
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
-#endif // DEBUG
 
-#ifdef _DEBUG
-    glEnable(GL_ARB_debug_output);
+    //glEnable(GL_ARB_debug_output);
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+    glDebugMessageCallback(DebugOutput, 0);
+    glDebugMessageControl(GL_DEBUG_SOURCE_APPLICATION, GL_DONT_CARE, GL_DEBUG_TYPE_MARKER, 0, NULL, GL_TRUE);
 #endif
 
     glEnable(GL_MULTISAMPLE);
@@ -1077,7 +1094,7 @@ InitGraphics()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-    //glEnable(GL_NORMALIZE);
+    glEnable(GL_NORMALIZE);
 
     envCubeObj = new VertexBufferObject();
     envCubeObj->CollapseCommonVertices(false);
@@ -1104,7 +1121,7 @@ InitGraphics()
     //telescopeObj->CollapseCommonVertices(false);
     //telescopeObj->glBegin(GL_TRIANGLES);
     materiallib = new MaterialSet();
-    LoadObjFile((char*)"assets\\skyscanner_100_edit.obj", &telescopeObj, materiallib);
+    LoadObjFile((char*)"assets\\skyscanner_100.obj", &telescopeObj, materiallib);
     //telescopeObj->glEnd();
 
     //glShadeModel(GL_FLAT);
@@ -1493,7 +1510,9 @@ InitGraphics()
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(cur_maps.diffuse, 0, GL_RGB8, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_BYTE, curtex.img);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.diffuse, 0);
+        //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.diffuse, 0);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         curtex = *matter.m->LoadNs();
 
@@ -1506,7 +1525,9 @@ InitGraphics()
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(cur_maps.rough, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.rough, 0);
+        //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.rough, 0);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         curtex = *matter.m->LoadRefl();
 
@@ -1519,7 +1540,9 @@ InitGraphics()
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(cur_maps.reflect, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.reflect, 0);
+        //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.reflect, 0);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         curtex = *matter.m->LoadNorm();
 
@@ -1532,7 +1555,9 @@ InitGraphics()
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(cur_maps.norm, 0, GL_RGB16, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_SHORT, curtex.img16);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.norm, 0);
+        //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, cur_maps.norm, 0);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         objtextures.push_back(cur_maps);
 

@@ -12,11 +12,11 @@
 #endif
 
 #define GLEW_STATIC
-#include "glew.h"
+#include "includes/glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "glut.h"
-#include "glm/glm.hpp"
+#include "includes/glut.h"
+#include "glm/glm/glm.hpp"
 #include <map>
 #include <stdarg.h>
 

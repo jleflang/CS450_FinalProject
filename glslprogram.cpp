@@ -1,10 +1,10 @@
 
-#include "glslprogram.h"
-#include "glm/glm.hpp"
-#include "glm/ext.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#define NVIDIA_SHADER_BINARY	0x00008e21		// nvidia binary enum
+#include "includes/glslprogram.h"
+#include "glm/glm/ext.hpp"
+#include "glm/glm/gtc/matrix_transform.hpp"
+#include "glm/glm/gtc/type_ptr.hpp"
+
+constexpr int NVIDIA_SHADER_BINARY = 0x00008e21;		// nvidia binary enum
 
 struct GLshadertype
 {
@@ -277,8 +277,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 			int length;
 			FILE* logfile;
 
-			in = fopen(file, "rb");
-			if (in == NULL)
+			if (fopen_s(&in, file, "rb") != 0)
 			{
 				fprintf(stderr, "Cannot open shader file '%s'\n", file);
 				Valid = false;
@@ -331,8 +330,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 						GLchar* infoLog = new GLchar[infoLogLen + 1];
 						glGetShaderInfoLog(shader, infoLogLen, NULL, infoLog);
 						infoLog[infoLogLen] = '\0';
-						logfile = fopen("glsllog.txt", "w");
-						if (logfile != NULL)
+						if (fopen_s(&logfile, "glsllog.txt", "w") == 0)
 						{
 							fprintf(logfile, "\n%s\n", infoLog);
 							fclose(logfile);
@@ -791,8 +789,8 @@ GLSLProgram::SetAttributeVariable(char* name, VertexBufferObject& vb, GLenum whi
 
 		fprintf(stderr, "Program binary format = 0x%04x\n", *format);
 
-		FILE* fpout = fopen(fileName, "wb");
-		if (fpout == NULL)
+		FILE* fpout = NULL;
+		if (fopen_s(&fpout, fileName, "wb") != 0)
 		{
 			fprintf(stderr, "Cannot create output GLSL binary file '%s'\n", fileName);
 			return;
@@ -806,8 +804,8 @@ GLSLProgram::SetAttributeVariable(char* name, VertexBufferObject& vb, GLenum whi
 	void
 		GLSLProgram::LoadProgramBinary(const char* fileName, GLenum format)
 	{
-		FILE* fpin = fopen(fileName, "rb");
-		if (fpin == NULL)
+		FILE* fpin = NULL;
+		if (fopen_s(&fpin, fileName, "rb") != 0)
 		{
 			fprintf(stderr, "Cannot open input GLSL binary file '%s'\n", fileName);
 			return;
