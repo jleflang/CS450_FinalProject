@@ -53,9 +53,9 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 	Normals.clear();
 	TextureCoords.clear();
 
-	struct Vertex sv;
-	struct Normal sn;
-	struct TextureCoord st;
+	struct Vertex sv = { };
+	struct Normal sn = { };
+	struct TextureCoord st = { };
 
 
 	// open the input file:
@@ -226,13 +226,7 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 		if (strcmp(cmd, "f") == 0)
 		{
-			struct face vertices[10];
-			for (int i = 0; i < 10; i++)
-			{
-				vertices[i].v = 0;
-				vertices[i].n = 0;
-				vertices[i].t = 0;
-			}
+			struct face vertices[10] = { };
 
 			int sizev = (int)Vertices.size();
 			int sizen = (int)Normals.size();
@@ -334,8 +328,6 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 				for (int vtx = 0; vtx < 3; vtx++)
 				{
-					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
-					cur_object_g->glVertex3f(vp->x, vp->y, vp->z);
 
 					if (vertices[vv[vtx]].n != 0)
 					{
@@ -348,6 +340,9 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 						struct TextureCoord* tp = &TextureCoords[vertices[vv[vtx]].t - 1];
 						cur_object_g->glTexCoord2f(tp->s, tp->t);
 					}
+
+					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
+					cur_object_g->glVertex3f(vp->x, vp->y, vp->z);
 				}
 			}
 			continue;
@@ -383,7 +378,7 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 void
 Cross(float v1[3], float v2[3], float vout[3])
 {
-	float tmp[3];
+	float tmp[3] = { };
 
 	tmp[0] = v1[1] * v2[2] - v2[1] * v1[2];
 	tmp[1] = v2[0] * v1[2] - v1[0] * v2[2];

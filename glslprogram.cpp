@@ -295,7 +295,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 				buf[length] = '\0';
 				fclose(in);
 
-				GLchar* strings[2];
+				GLchar* strings[2] = { };
 				int n = 0;
 
 				if (IncludeGstap)

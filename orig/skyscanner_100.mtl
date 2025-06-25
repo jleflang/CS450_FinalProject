@@ -1,52 +1,77 @@
-# Blender MTL File: 'None'
-# Material Count: 5
+# Blender 4.0.1 MTL File: 'skyscanner.blend'
+# www.blender.org
 
 newmtl Base
-Ns 225.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd textures/orionskyscanner 100mm 3d model_Base_BaseColor.png
+map_Pm textures/orionskyscanner 100mm 3d model_Base_Metallic.png
+map_Pr textures/orionskyscanner 100mm 3d model_Base_Roughness.png
 
 newmtl Dovetail_And_Focuser
-Ns 225.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd textures/orionskyscanner 100mm 3d model_Dovetail And Focuser_BaseColor.png
+map_Pm textures/orionskyscanner 100mm 3d model_Dovetail And Focuser_Metallic.png
+map_Pr textures/orionskyscanner 100mm 3d model_Dovetail And Focuser_Roughness.png
 
 newmtl Nuts_And_Bolts
-Ns 225.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd textures/orionskyscanner 100mm 3d model_Nuts And Bolts_BaseColor.png
+map_Pm textures/orionskyscanner 100mm 3d model_Nuts And Bolts_Metallic.png
+map_Pr textures/orionskyscanner 100mm 3d model_Nuts And Bolts_Roughness.png
 
 newmtl Optical_Tube_Fix
-Ns 225.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd textures/orionskyscanner 100mm 3d model_Optical Tube_BaseColor.png
+map_Pm textures/orionskyscanner 100mm 3d model_Optical Tube_Metallic.png
+map_Pr textures/orionskyscanner 100mm 3d model_Optical Tube_Roughness.png
 
 newmtl Screw_Knobs
-Ns 225.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 2
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd textures/orionskyscanner 100mm 3d model_Screw Knobs_BaseColor.png
+map_Pm textures/orionskyscanner 100mm 3d model_Screw Knobs_Metallic.png
+map_Pr textures/orionskyscanner 100mm 3d model_Screw Knobs_Roughness.png

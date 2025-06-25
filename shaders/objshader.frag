@@ -71,8 +71,7 @@ float ComputeShadow(const vec4 fragPosLightSpace) {
    return min(max(p, pMax), 1.0);
 }
 
-vec3 
-tonemapFilmic(vec3 x) 
+vec3 tonemapFilmic(vec3 x) 
 {
   vec3 X = max(vec3(0.0), x - 0.004);
   vec3 AX = A * X;
@@ -131,8 +130,8 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 void main()
 {		
     vec3 N = getNormalFromMap();
-    vec3 V = -normalize(uCamPos-vPos);
-    vec3 R = reflect(V, N); 
+    vec3 V = normalize(uCamPos-vPos);
+    vec3 R = reflect(-V, N); 
 	
 	float shadow = ComputeShadow(vFragPosLightSpace);
 

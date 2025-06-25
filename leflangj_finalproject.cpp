@@ -224,7 +224,7 @@ GLSLProgram *Brdf;
 GLSLProgram *Uber;
 
 GLSLProgram *GetDepth;
-GLSLProgram* RenderWithShadows;
+//GLSLProgram* RenderWithShadows;
 
 GLuint framebuf;
 GLuint renderbuf;
@@ -448,10 +448,10 @@ Display()
     };
 
     glm::vec3 light_color[] = {
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
-        glm::vec3(600.,600.,600.),
+        glm::vec3(600.,600.,200.),
+        glm::vec3(600.,200.,600.),
+        glm::vec3(200.,600.,600.),
+        glm::vec3(400.,600.,400.),
     };
 
     glm::mat4 L0_td = glm::translate(model, light_translate[0]);
@@ -532,20 +532,23 @@ Display()
     // given as DISTANCES IN FRONT OF THE EYE
     // USE gluOrtho2D( ) IF YOU ARE DOING 2D !
 
+    glDisable(GL_CULL_FACE);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glm::mat4 projection;
+    glm::mat4 projection = { };
 
     if (WhichProjection == ORTHO)
         projection = glm::ortho(-3., 3., -3., 3., 0.1, 1000.);
     else
         projection = glm::perspective(glm::radians(90.), 1., 0.1, 1000.);
 
-    RenderWithShadows->SetUniformVariable((char*)"uProj", projection);
+    //RenderWithShadows->SetUniformVariable((char*)"uProj", projection);
 
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
     Uber->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
+    Uber->SetUniformVariable((char*)"ao", 0.64f);
+    Uber->SetUniformVariable((char*)"uExpose", 2.2f);
 
     //Back->Use();
     
@@ -629,7 +632,7 @@ Display()
 
     //RenderWithShadows->SetUniformVariable((char*)"uColor", objcolor);
     //RenderWithShadows->SetUniformVariable((char*)"uModel", objfile);
-    
+
     for (auto obj : telescopeObj)
     {
         std::string cur_mat = obj->GetMaterial();
@@ -675,25 +678,25 @@ Display()
     Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
     Uber->SetUniformVariable((char*)"uModel", L0_td);
     //glCallList(SphereList);
-    renderSphere();
+    //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[1]", light_translate[1]);
     Uber->SetUniformVariable((char*)"lightColors[1]", light_color[1]);
     Uber->SetUniformVariable((char*)"uModel", L1_td);
     //glCallList(SphereList);
-    renderSphere();
+    //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[2]", light_translate[2]);
     Uber->SetUniformVariable((char*)"lightColors[2]", light_color[2]);
     Uber->SetUniformVariable((char*)"uModel", L2_td);
     //glCallList(SphereList);
-    renderSphere();
+    //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[3]", light_translate[3]);
     Uber->SetUniformVariable((char*)"lightColors[3]", light_color[3]);
     Uber->SetUniformVariable((char*)"uModel", L3_td);
     //glCallList(SphereList);
-    renderSphere();
+    //renderSphere();
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -709,8 +712,7 @@ Display()
     Back->Use();
     Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
-    Back->SetUniformVariable((char*)"uenvMap", 0);
-    Back->SetUniformVariable((char*)"uExpose", 2.6f);
+    Back->SetUniformVariable((char*)"uExpose", 0.96f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
@@ -721,6 +723,8 @@ Display()
     /*Brdf->Use();
     renderQuad();
     Brdf->UnUse();*/
+
+    glEnable(GL_CULL_FACE);
 
 
     // #ifdef DEMO_Z_FIGHTING
@@ -1111,7 +1115,6 @@ InitGraphics()
 #endif
 
     glEnable(GL_MULTISAMPLE);
-    glFrontFace(GL_CCW);
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
@@ -1129,9 +1132,9 @@ InitGraphics()
         for (int j = 0; j < 4; j++)
         {
             GLuint k = CubeIndices[i][j];
-            envCubeObj->glVertex3fv(CubeVertices[k]);
             envCubeObj->glNormal3fv(CubeNormals[i]);
             envCubeObj->glTexCoord2fv(CubeTextures[k]);
+            envCubeObj->glVertex3fv(CubeVertices[k]);
         }
     }
     envCubeObj->glEnd();
@@ -1283,27 +1286,27 @@ InitGraphics()
 #endif // _DEBUG
     GetDepth->SetVerbose(false);
 
-    RenderWithShadows = new GLSLProgram();
-    valid = RenderWithShadows->Create((char*)"shaders\\RenderWithShadows.vert", (char*)"shaders\\RenderWithShadows.frag");
-#ifdef _DEBUG
-    if (!valid)
-    {
-        fprintf(stderr, "RenderWithShadows Shader cannot be created!\n");
-    }
-    else
-    {
-        fprintf(stderr, "RenderWithShadows Shader created successfully.\n");
-    }
-#endif // _DEBUG
-    RenderWithShadows->SetVerbose(false);
+//    RenderWithShadows = new GLSLProgram();
+//    valid = RenderWithShadows->Create((char*)"shaders\\RenderWithShadows.vert", (char*)"shaders\\RenderWithShadows.frag");
+//#ifdef _DEBUG
+//    if (!valid)
+//    {
+//        fprintf(stderr, "RenderWithShadows Shader cannot be created!\n");
+//    }
+//    else
+//    {
+//        fprintf(stderr, "RenderWithShadows Shader created successfully.\n");
+//    }
+//#endif // _DEBUG
+//    RenderWithShadows->SetVerbose(false);
 
     glGenFramebuffers(1, &depthMap);
     glGenTextures(1, &shadowMap);
     glBindTexture(GL_TEXTURE_2D, shadowMap);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadows[0], shadows[1], 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1317,6 +1320,8 @@ InitGraphics()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    GLfloat borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
     
@@ -1324,11 +1329,6 @@ InitGraphics()
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadowColorMap, 0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    Uber->Use();
-    Uber->SetUniformVariable((char*)"ao", 1.f);
-    Uber->SetUniformVariable((char*)"uExpose", 2.3f);
-    Uber->Use(0);
 
     glGenFramebuffers(1, &framebuf);
     glGenRenderbuffers(1, &renderbuf);
@@ -1413,7 +1413,7 @@ InitGraphics()
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
@@ -1531,8 +1531,8 @@ InitGraphics()
         glGenTextures(1, &cur_maps.diffuse);
         glBindTexture(GL_TEXTURE_2D, cur_maps.diffuse);
 
-        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_BYTE, curtex.img);
@@ -1545,8 +1545,8 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.rough);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
@@ -1559,8 +1559,8 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.reflect);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_BYTE, curtex.img);
@@ -1573,8 +1573,8 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.norm);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_SHORT, curtex.img16);
