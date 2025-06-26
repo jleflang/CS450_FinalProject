@@ -11,13 +11,14 @@ layout (location = 4) out vec4 vFragPosLightSpace[4];
 uniform mat4 uProj;
 uniform mat4 uView;
 uniform mat4 uModel;
+uniform mat3 uModelMatrix;
 uniform mat4 uLightSpaceMatrix[4];
 
 void main()
 {
     vTexCoords = aTexCoords;
     vPos = vec3(uModel * vec4(aPos, 1.0));
-    vNormal = normalize(mat3(uModel) * aNormal);
+    vNormal = uModelMatrix * aNormal;
     for (int i = 0; i < 4; i++)
         vFragPosLightSpace[i] = uLightSpaceMatrix[i]  * vec4(vPos, 1.);
 

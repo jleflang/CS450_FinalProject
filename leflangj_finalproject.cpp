@@ -224,7 +224,6 @@ GLSLProgram *Brdf;
 GLSLProgram *Uber;
 
 GLSLProgram *GetDepth;
-//GLSLProgram* RenderWithShadows;
 
 GLuint framebuf;
 GLuint renderbuf;
@@ -380,7 +379,7 @@ main(int argc, char* argv[])
     return 0;
 }
 
-
+#ifdef _DEBUG
 void GLAPIENTRY
 DebugOutput(GLenum source,
     GLenum type,
@@ -394,6 +393,7 @@ DebugOutput(GLenum source,
         (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
         type, severity, message);
 }
+#endif // DEBUG
 
 
 // this is where one would put code that is to be called
@@ -481,8 +481,9 @@ Display()
     GetDepth->Use();
 
     glm::mat4 objfile(1.f);
+    glm::mat3 objmodel = glm::transpose(glm::inverse(glm::mat3(objfile)));
 
-    glm::mat4 lightProjection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, 1.f, 45.f);
+    glm::mat4 lightProjection = glm::ortho(-500.0f, 500.0f, -500.0f, 500.0f, 0.f, 500.f);
     glm::mat4 lightSpaceMatrix[4] = { };
 
     for (int i = 0; i < 4; i++) {
@@ -491,9 +492,13 @@ Display()
 
         lightSpaceMatrix[i] = lightProjection * lightView;
 
-        GetDepth->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix[i]);
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, shadowColorMap, 0, i);
 
+        GetDepth->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix[i]);
         GetDepth->SetUniformVariable((char*)"uModel", objfile);
+
+        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
         for (auto obj : telescopeObj)
             obj->Draw();
 
@@ -541,12 +546,10 @@ Display()
     else
         projection = glm::perspective(glm::radians(90.), 1., 0.1, 1000.);
 
-    //RenderWithShadows->SetUniformVariable((char*)"uProj", projection);
-
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
     Uber->SetUniformVariable((char*)"uLightSpaceMatrix", *lightSpaceMatrix);
-    Uber->SetUniformVariable((char*)"ao", 0.64f);
+    Uber->SetUniformVariable((char*)"ao", 1.f);
     Uber->SetUniformVariable((char*)"uExpose", 2.2f);
 
     //Back->Use();
@@ -618,7 +621,7 @@ Display()
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, brdf);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, shadowColorMap);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, shadowColorMap);
 
     // draw the current object:
 
@@ -628,9 +631,6 @@ Display()
     //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(1.f, 0.f, 0.f));
     //objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
     //objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
-
-    //RenderWithShadows->SetUniformVariable((char*)"uColor", objcolor);
-    //RenderWithShadows->SetUniformVariable((char*)"uModel", objfile);
 
     for (auto obj : telescopeObj)
     {
@@ -659,6 +659,7 @@ Display()
         glActiveTexture(GL_TEXTURE8);
         glBindTexture(GL_TEXTURE_2D, normal);
 
+        Uber->SetUniformVariable((char*)"uModelMatrix", objmodel);
         Uber->SetUniformVariable((char*)"uModel", objfile);
         obj->Draw();
 
@@ -675,24 +676,28 @@ Display()
 
     Uber->SetUniformVariable((char*)"lightPositions[0]", light_translate[0]);
     Uber->SetUniformVariable((char*)"lightColors[0]", light_color[0]);
+    Uber->SetUniformVariable((char*)"uModelMatrix", (glm::mat3 &)glm::transpose(glm::inverse(glm::mat3(L0_td))));
     Uber->SetUniformVariable((char*)"uModel", L0_td);
     //glCallList(SphereList);
     //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[1]", light_translate[1]);
     Uber->SetUniformVariable((char*)"lightColors[1]", light_color[1]);
+    Uber->SetUniformVariable((char*)"uModelMatrix", (glm::mat3&)glm::transpose(glm::inverse(glm::mat3(L1_td))));
     Uber->SetUniformVariable((char*)"uModel", L1_td);
     //glCallList(SphereList);
     //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[2]", light_translate[2]);
     Uber->SetUniformVariable((char*)"lightColors[2]", light_color[2]);
+    Uber->SetUniformVariable((char*)"uModelMatrix", (glm::mat3&)glm::transpose(glm::inverse(glm::mat3(L2_td))));
     Uber->SetUniformVariable((char*)"uModel", L2_td);
     //glCallList(SphereList);
     //renderSphere();
 
     Uber->SetUniformVariable((char*)"lightPositions[3]", light_translate[3]);
     Uber->SetUniformVariable((char*)"lightColors[3]", light_color[3]);
+    Uber->SetUniformVariable((char*)"uModelMatrix", (glm::mat3&)glm::transpose(glm::inverse(glm::mat3(L3_td))));
     Uber->SetUniformVariable((char*)"uModel", L3_td);
     //glCallList(SphereList);
     //renderSphere();
@@ -704,14 +709,14 @@ Display()
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     Uber->Use(0);
     
     Back->Use();
     Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
-    Back->SetUniformVariable((char*)"uExpose", 0.96f);
+    Back->SetUniformVariable((char*)"uExpose", 1.8f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
@@ -1105,7 +1110,6 @@ InitGraphics()
         fprintf(stderr, "GLEW initialized OK\n");
     fprintf(stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 
-    //glEnable(GL_ARB_debug_output);
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
     glDebugMessageCallback(DebugOutput, 0);
@@ -1284,20 +1288,6 @@ InitGraphics()
 #endif // _DEBUG
     GetDepth->SetVerbose(false);
 
-//    RenderWithShadows = new GLSLProgram();
-//    valid = RenderWithShadows->Create((char*)"shaders\\RenderWithShadows.vert", (char*)"shaders\\RenderWithShadows.frag");
-//#ifdef _DEBUG
-//    if (!valid)
-//    {
-//        fprintf(stderr, "RenderWithShadows Shader cannot be created!\n");
-//    }
-//    else
-//    {
-//        fprintf(stderr, "RenderWithShadows Shader created successfully.\n");
-//    }
-//#endif // _DEBUG
-//    RenderWithShadows->SetVerbose(false);
-
     glGenFramebuffers(1, &depthMap);
     glGenTextures(1, &shadowMap);
     glBindTexture(GL_TEXTURE_2D, shadowMap);
@@ -1310,21 +1300,22 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glGenTextures(1, &shadowColorMap);
-    glBindTexture(GL_TEXTURE_2D, shadowColorMap);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, shadowColorMap);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, shadows[0], shadows[1], 0, GL_RGBA, GL_FLOAT, NULL);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG32F, shadows[0], shadows[1], 4, 0, GL_RGBA, GL_FLOAT, NULL);
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     GLfloat borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
     
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadowColorMap, 0);
+    for (int i = 0; i < 4; i++)
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, shadowColorMap, 0, i);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -1335,7 +1326,7 @@ InitGraphics()
     glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
 
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 2048, 2048);
-    glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
     
     // Init the Env HDR
     // Set STBI to flip images for texture loading
@@ -1469,8 +1460,8 @@ InitGraphics()
     for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
     {
         // reisze framebuffer according to mip-level size.
-        unsigned int mipWidth = 512 * (unsigned int)std::pow(0.5f, mip);
-        unsigned int mipHeight = 512 * (unsigned int)std::pow(0.5f, mip);
+        unsigned int mipWidth = static_cast<unsigned int>(512 * std::pow(0.5, mip));
+        unsigned int mipHeight = static_cast<unsigned int>(512 * std::pow(0.5, mip));
         glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
         glViewport(0, 0, mipWidth, mipHeight);

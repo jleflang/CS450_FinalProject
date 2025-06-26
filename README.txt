@@ -8,6 +8,8 @@
 This project is intended to be compiled on a Windows machine with Visual Studio
     installed.
 
+NOTE: Release x64 Builds broken on VS2022 due to codegen bugs; Debug builds are fine.
+
 HDR "LA_Downtown_Helipad_GoldenHour_3k.hdr" found at https://polyhaven.com/hdris
 
 Third Party Tools

@@ -14,7 +14,7 @@ uniform float uExpose;
 layout (binding = 1) uniform samplerCube iemMap;
 layout (binding = 2) uniform samplerCube prefilMap;
 layout (binding = 3) uniform sampler2D brdfLUT;
-layout (binding = 4) uniform sampler2D shadowMap;
+layout (binding = 4) uniform sampler2DArray shadowMap;
 
 // PBR textures
 layout (binding = 5) uniform sampler2D diffusetex;
@@ -55,13 +55,15 @@ float linstep(const float low, const float high, const float value) {
 
 // ----------------------------------------------------------------------------
 // Variance shadow mapping
-float ComputeShadow(const vec4 fragPosLightSpace) {
+float ComputeShadow(const int lightlayer) {
+    vec4 fragPosLightSpace = vFragPosLightSpace[lightlayer];
+
     // Perspective divide
     vec2 screenCoords = fragPosLightSpace.xy / fragPosLightSpace.w;
     screenCoords = screenCoords * 0.5 + 0.5; // [0, 1]
 
     const float distance = fragPosLightSpace.z; // Use raw distance instead of linear junk
-    vec2 moments = texture(shadowMap, screenCoords).rg;
+    vec2 moments = texture(shadowMap, vec3(screenCoords, lightlayer)).rg;
 
     float p = step(distance, moments.x);
     float variance = max(moments.y - (moments.x * moments.x), 0.00002);
@@ -140,12 +142,11 @@ void main()
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04);
-
 	F0 = mix(F0, tdiffuse, tmetal);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
-    for(int i = 0; i < 4; ++i) 
+    for(int i = 0; i < 4; ++i)
     {
         // calculate per-light radiance
         vec3 L = normalize(lightPositions[i] - vPos);
@@ -153,14 +154,14 @@ void main()
         float distance = length(lightPositions[i] - vPos);
         float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColors[i] * attenuation;
-        float shadow = ComputeShadow(vFragPosLightSpace[i]);
+        float shadow = ComputeShadow(i);
 
         // Cook-Torrance BRDF
-		float NDF = DistributionGGX(N, H, trough);   
+		float NDF = DistributionGGX(N, H, trough);
 		float G   = GeometrySmith(N, V, L, trough);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
-        vec3 numerator    = NDF * G * F; 
+        vec3 numerator    = NDF * G * F;
         float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0); 
         vec3 specular = numerator / max(denominator, 0.0001);
         
@@ -176,7 +177,7 @@ void main()
 		kD *= 1.0 - tmetal;
 
         // scale light by NdotL
-        float NdotL = max(dot(N, L), 0.0);    
+        float NdotL = max(dot(N, L), 0.0);
 
         // add to outgoing radiance Lo
 		// note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
@@ -199,7 +200,7 @@ void main()
     const float MAX_REFLECTION_LOD = 4.0;
 	vec3 prefilteredColor = textureLod(prefilMap, R,  trough * MAX_REFLECTION_LOD).rgb;
 	vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), trough)).rg;
-    vec3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);	
+    vec3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);
 
     vec3 ambient = (kD * diffuse + specular) * ao;
 

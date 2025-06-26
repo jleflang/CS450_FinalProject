@@ -1,5 +1,6 @@
 
 #include "includes/glslprogram.h"
+#include <string.h>
 #include "glm/glm/ext.hpp"
 #include "glm/glm/gtc/matrix_transform.hpp"
 #include "glm/glm/gtc/type_ptr.hpp"
@@ -40,7 +41,7 @@ static
 char*
 GetExtension(char* file)
 {
-	int n = (int)strlen(file) - 1;	// index of last non-null character
+	int n = (int)std::strlen(file) - 1;	// index of last non-null character
 
 	// look for a '.':
 
@@ -138,7 +139,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 
 		for (int i = 0; i < maxBinaryTypes; i++)
 		{
-			if (strcmp(extension, BinaryTypes[i].extension) == 0)
+			if (std::strcmp(extension, BinaryTypes[i].extension) == 0)
 			{
 				// fprintf( stderr, "Legal extension = '%s'\n", extension );
 				LoadProgramBinary(file, BinaryTypes[i].format);
@@ -149,7 +150,7 @@ GLSLProgram::CreateHelper(char* file0, ...)
 		int maxShaderTypes = sizeof(ShaderTypes) / sizeof(struct GLshadertype);
 		for (int i = 0; i < maxShaderTypes; i++)
 		{
-			if (strcmp(extension, ShaderTypes[i].extension) == 0)
+			if (std::strcmp(extension, ShaderTypes[i].extension) == 0)
 			{
 				// fprintf( stderr, "Legal extension = '%s'\n", extension );
 				type = i;
@@ -660,6 +661,20 @@ GLSLProgram::SetAttributeVariable(char* name, VertexBufferObject& vb, GLenum whi
 	};
 
 	void
+	GLSLProgram::SetUniformVariable(char* name, glm::mat3& matrix)
+	{
+		int loc;
+
+		if ((loc = GetUniformLocation(name)) >= 0)
+		{
+			this->Use();
+			//fprintf(stderr, "%s mat4\n", name);
+			//glUniformMatrix3fv(loc, 16, true, &matrix[0][0]);
+			glUniformMatrix3fv(loc, 1, false, value_ptr(matrix));
+		}
+	};
+
+	void
 		GLSLProgram::SetUniformVariable(char* name, glm::vec3& vec)
 	{
 		int loc;
@@ -710,7 +725,7 @@ GLSLProgram::SetAttributeVariable(char* name, VertexBufferObject& vb, GLenum whi
 		if (extension == NULL || extension[0] == '\0')
 			return false;
 
-		GLubyte* where = (GLubyte*)strchr(extension, ' ');
+		GLubyte* where = (GLubyte*)std::strchr(extension, ' ');
 		if (where != 0)
 			return false;
 
@@ -720,11 +735,11 @@ GLSLProgram::SetAttributeVariable(char* name, VertexBufferObject& vb, GLenum whi
 
 		for (const GLubyte* start = extensions; ; )
 		{
-			where = (GLubyte*)strstr((const char*)start, extension);
+			where = (GLubyte*)std::strstr((const char*)start, extension);
 			if (where == 0)
 				return false;
 
-			GLubyte* terminator = where + strlen(extension);
+			GLubyte* terminator = where + std::strlen(extension);
 
 			if (where == start || *(where - 1) == '\n' || *(where - 1) == ' ')
 				if (*terminator == ' ' || *terminator == '\n' || *terminator == '\0')

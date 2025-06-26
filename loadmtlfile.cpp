@@ -1,4 +1,5 @@
 #include "includes/loadmtlfile.h"
+#include <string.h>
 
 #define OBJDELIMS		" \t"
 #define WINEOL			"\n"
