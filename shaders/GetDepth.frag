@@ -10,4 +10,4 @@ void main()
 	float moment2 = vDepth * vDepth + 0.25 * (dx * dx + dy * dy);
 	
     fFragColor = vec4(vDepth, moment2, 0., 1.);
-}  
+}

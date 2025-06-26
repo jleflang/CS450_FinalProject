@@ -10,5 +10,5 @@ void
 main()
 {
     gl_Position = uLightSpaceMatrix * uModel * vec4(aPos, 1.);
-	vDepth = gl_Position.z;
-} 
+    vDepth = gl_Position.z;
+}

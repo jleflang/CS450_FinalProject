@@ -437,6 +437,9 @@ Display()
 
     glutSetWindow(MainWindow);
 
+    glClearColor(0.f, 0.f, 0.f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     float theta = (2.f * (float)M_PI) * Time;
     glm::mat4 model(1.f);
 
@@ -463,53 +466,49 @@ Display()
     glm::mat4 L3_td = glm::translate(model, light_translate[3]);
     L3_td = glm::scale(L3_td, glm::vec3(0.5f));
 
-    GetDepth->Use();
-
-    glm::mat4 lightProjection = glm::ortho(-500.0f, 500.0f, -500.0f, 500.0f, 0.f, 500.f);
-    glm::mat4 lightView = glm::lookAt(light_translate[2], glm::vec3(0., 0., 0.), glm::vec3(0., 1., 0.));
-
-    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
 
     glCullFace(GL_FRONT);
     glViewport(0, 0, shadows[0], shadows[1]);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMap);
     glClear(GL_DEPTH_BUFFER_BIT);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
     glEnable(GL_DEPTH_TEST);
     glShadeModel(GL_FLAT);
     glDisable(GL_NORMALIZE);
 
-    GetDepth->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
+    GetDepth->Use();
 
     glm::mat4 objfile(1.f);
 
-    //objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
-    //objfile = glm::rotate(objfile, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
-    //objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
-    //objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
-   
-    GetDepth->SetUniformVariable((char*)"uModel", objfile);
-    for (auto obj : telescopeObj)
-        obj->Draw();
+    glm::mat4 lightProjection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, 1.f, 45.f);
+    glm::mat4 lightSpaceMatrix[4] = { };
 
-    GetDepth->SetUniformVariable((char*)"uModel", L0_td);
-    renderSphere();
+    for (int i = 0; i < 4; i++) {
 
-    GetDepth->SetUniformVariable((char*)"uModel", L1_td);
-    renderSphere();
+        glm::mat4 lightView = glm::lookAt(light_translate[i], glm::vec3(0., 0., 0.), glm::vec3(0., 1., 0.));
 
-    GetDepth->SetUniformVariable((char*)"uModel", L2_td);
-    renderSphere();
+        lightSpaceMatrix[i] = lightProjection * lightView;
 
-    GetDepth->SetUniformVariable((char*)"uModel", L3_td);
-    renderSphere();
+        GetDepth->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix[i]);
+
+        GetDepth->SetUniformVariable((char*)"uModel", objfile);
+        for (auto obj : telescopeObj)
+            obj->Draw();
+
+    }
+
+    ////objfile = glm::rotate(objfile, glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+    ////objfile = glm::rotate(objfile, glm::radians(-90.f), glm::vec3(1.f, 0.f, 0.f));
+    ////objfile = glm::translate(objfile, glm::vec3(0.f, 0.f, -9.f));
+    ////objfile = glm::scale(objfile, glm::vec3(0.1f, 0.1f, 0.1f));
 
     GetDepth->Use(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // erase the background:
 
-    glDrawBuffer(GL_BACK);
     glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
@@ -546,7 +545,7 @@ Display()
 
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
-    Uber->SetUniformVariable((char*)"uLightSpaceMatrix", lightSpaceMatrix);
+    Uber->SetUniformVariable((char*)"uLightSpaceMatrix", *lightSpaceMatrix);
     Uber->SetUniformVariable((char*)"ao", 0.64f);
     Uber->SetUniformVariable((char*)"uExpose", 2.2f);
 
@@ -1028,7 +1027,6 @@ InitGraphics()
     glutSetOption(GLUT_MULTISAMPLE, 8);
     glutInitContextVersion(4, 5);
     glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
-    glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
 #ifdef _DEBUG
     glutInitContextFlags(GLUT_DEBUG);
 #endif
