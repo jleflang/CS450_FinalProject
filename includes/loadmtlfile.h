@@ -22,7 +22,8 @@ private:
         diffuse,
         rough,
         reflect,
-        normal
+        normal,
+        bump
     };
 
     void ReadImageTexture(char*, int, int);
@@ -35,11 +36,13 @@ public:
     std::vector<Texture>* textures;
 
     Texture* LoadNorm();
+    Texture* LoadHeight();
     Texture* LoadKd();
     Texture* LoadNs();
     Texture* LoadRefl();
 
     void ReadNorm(char*);
+    void ReadHeight(char*);
     void ReadKd(char*);
     void ReadNs(char*);
     void ReadRefl(char*);
@@ -53,7 +56,7 @@ public:
         *Ke = { };
         illum = 0;
         textures = new std::vector<Texture>;
-        textures->reserve(4);
+        textures->reserve(5);
 
     };
 

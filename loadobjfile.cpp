@@ -304,10 +304,45 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 
 			for (int it = 0; it < numTriangles; it++)
 			{
-				int vv[3];
+				int vv[3] = { };
 				vv[0] = 0;
 				vv[1] = it + 1;
 				vv[2] = it + 2;
+
+
+				// Calculate Tangent/Binormals
+				struct Vertex tangent = { };
+				struct Vertex bitangent = { };
+
+				if (vertices[vv[0]].t != 0)
+				{
+					struct Vertex* v0 = &Vertices[vertices[vv[0]].v - 1];
+					struct Vertex* v1 = &Vertices[vertices[vv[1]].v - 1];
+					struct Vertex* v2 = &Vertices[vertices[vv[2]].v - 1];
+
+					struct TextureCoord* tp0 = &TextureCoords[vertices[vv[0]].t - 1];
+					struct TextureCoord* tp1 = &TextureCoords[vertices[vv[1]].t - 1];
+					struct TextureCoord* tp2 = &TextureCoords[vertices[vv[2]].t - 1];
+
+					struct Vertex deltaPos1 = { v1->x - v0->x, v1->y - v0->y, v1->z - v0->z };
+					struct Vertex deltaPos2 = { v2->x - v0->x, v2->y - v0->y, v2->z - v0->z };
+
+					struct TextureCoord uv1 = { tp1->s - tp0->s, tp1->t - tp0->t };
+					struct TextureCoord uv2 = { tp2->s - tp0->s, tp2->t - tp0->t };
+
+					float r = 1.f / (uv1.s * uv2.t - uv1.t * uv2.s);
+
+					tangent = { (deltaPos1.x * uv2.t - deltaPos2.x * uv1.t) * r,
+								(deltaPos1.y * uv2.t - deltaPos2.y * uv1.t) * r,
+								(deltaPos1.z * uv2.t - deltaPos2.z * uv1.t) * r
+							  };
+
+					bitangent = { (deltaPos1.x * uv2.s - deltaPos2.x * uv1.s) * r,
+								  (deltaPos1.y * uv2.s - deltaPos2.y * uv1.s) * r,
+								  (deltaPos1.z * uv2.s - deltaPos2.z * uv1.s) * r
+							    };
+
+				}
 
 				// get the planar normal, in case vertex normals are not defined:
 
@@ -342,6 +377,8 @@ LoadObjFile(char* name, std::vector<VertexBufferObject*> *object, MaterialSet *m
 					}
 
 					struct Vertex* vp = &Vertices[vertices[vv[vtx]].v - 1];
+					cur_object_g->AddTangent(tangent.x, tangent.y, tangent.z);
+					cur_object_g->AddBitangent(bitangent.x, bitangent.y, bitangent.z);
 					cur_object_g->glVertex3f(vp->x, vp->y, vp->z);
 				}
 			}

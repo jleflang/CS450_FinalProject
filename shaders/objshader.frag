@@ -1,14 +1,18 @@
 #version 450
 
 layout (location = 0) out vec4 FragColor;
-layout (location = 1) in vec3 vPos;
-layout (location = 2) in vec3 vNormal;
-layout (location = 3) in vec2 vTexCoords;
-layout (location = 4) in vec4 vFragPosLightSpace[4];
+layout (location = 1) in vec4 vPos;
+layout (location = 2) in vec4 vPosVS;
+layout (location = 3) in vec3 vNormal;
+layout (location = 4) in vec2 vTexCoords;
+layout (location = 5) in vec4 vFragPosLightSpace[4];
+layout (location = 9) in mat3 vpTBN;
+layout (location = 12) in mat3 vpTBNinv;
 
 // material parameters
 uniform float ao;
 uniform float uExpose;
+uniform float uTexScale;
 
 // Environment textures
 layout (binding = 1) uniform samplerCube iemMap;
@@ -21,7 +25,9 @@ layout (binding = 5) uniform sampler2D diffusetex;
 layout (binding = 6) uniform sampler2D roughtex;
 layout (binding = 7) uniform sampler2D metallictex;
 layout (binding = 8) uniform sampler2D normtex;
+layout (binding = 9) uniform sampler2D heighttex;
 
+// Camera View
 uniform vec3 uCamPos;
 
 // lights
@@ -30,22 +36,87 @@ uniform vec3 lightColors[4];
 
 const float PI = 3.14159265359;
 const float A = 6.2;
+const float heightScale = 0.05;
 
-vec3 getNormalFromMap()
+// Adapted from https://github.com/panthuncia/webgl_test/blob/main/index.html
+vec3 ContactRefineParallax(vec2 uv)
 {
-    vec3 tangentNormal = texture(normtex, vTexCoords).xyz * 2.0 - 1.0;
+    
+    vec3 tCam = vpTBNinv * uCamPos;
+    vec3 tFrag = vpTBNinv * vPos.xyz;
+    vec3 viewDir = normalize(tCam - tFrag);
 
-    vec3 Q1  = dFdx(vPos);
-    vec3 Q2  = dFdy(vPos);
-    vec2 st1 = dFdx(vTexCoords);
-    vec2 st2 = dFdy(vTexCoords);
+    float maxHeight = heightScale;
+    float minHeight = maxHeight*1.0;
 
-    vec3 N   = normalize(vNormal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
+    int mSteps = 16;
 
-    return normalize(TBN * tangentNormal);
+    float viewCorr = (-viewDir.z) + 2.0;
+    float stepSz = 1.0 / (float(mSteps) + 1.0);
+    vec2 sOffset = viewDir.xy * vec2(maxHeight, maxHeight) * stepSz;
+
+    vec2 lastOff = fract(fma(viewDir.xy, vec2(minHeight, minHeight), uv) + 1.0);
+    float lastRayD = 1.0;
+    float lastH = 1.0;
+
+    vec2 p1;
+    vec2 p2;
+    bool refine = false;
+
+    while (mSteps > 0) {
+        // Advance ray in direction of TS view direction
+        vec2 candidateOffset = fract((lastOff-sOffset) + 1.0);
+        float currentRayDepth = lastRayD - stepSz;
+
+        // Sample height map at this offset
+        float currentHeight = texture(heighttex, candidateOffset).r;
+        currentHeight = viewCorr * currentHeight;
+        // Test our candidate depth
+        if (currentHeight > currentRayDepth)
+        {
+            p1 = vec2(currentRayDepth, currentHeight);
+            p2 = vec2(lastRayD, lastH);
+            // Break if this is the contact refinement pass
+            if (refine) {
+                lastH = currentHeight;
+                break;
+            // Else, continue raycasting with squared precision
+            } else {
+                refine = true;
+                lastRayD = p2.x;
+                stepSz /= float(mSteps);
+                sOffset /= float(mSteps);
+                continue;
+            }
+        }
+        lastOff = candidateOffset;
+        lastRayD = currentRayDepth;
+        lastH = currentHeight;
+        mSteps -= 1;
+    }
+
+    // Interpolate between final two points
+    float diff1 = p1.x - p1.y;
+    float diff2 = p2.x - p2.y;
+    float denominator = diff2 - diff1;
+
+    float parallaxAmount = 0.0;
+    if (denominator != 0.00) {
+        parallaxAmount = (p1.x * diff2 - p2.x * diff1) / denominator;
+    }
+
+    float offset = (1.0 - parallaxAmount) * -maxHeight + minHeight;
+
+    return vec3(viewDir.xy * offset + uv, lastH);
+}
+
+vec3 getNormalFromMap(vec2 uv)
+{
+    vec3 tanNorm = texture(normtex, uv).rgb;
+    vec3 tangentNormal = normalize(tanNorm * 2.0 - 1.0);
+    tangentNormal.g = 1. - tangentNormal.g;
+
+    return normalize(vpTBN * tangentNormal);
 }
 // ----------------------------------------------------------------------------
 // Piecewise linear interpolation
@@ -131,39 +202,49 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 // ----------------------------------------------------------------------------
 void main()
 {
-    vec3 N = getNormalFromMap();
-    vec3 V = normalize(uCamPos-vPos);
+    vec2 uv = vTexCoords;
+    uv *= uTexScale;
+
+    vec3 uvh = ContactRefineParallax(uv);
+    uv = uvh.xy;
+
+    vec3 V = normalize(uCamPos-vPos.xyz);
+    vec3 N = getNormalFromMap(uv);
     vec3 R = reflect(-V, N);
 
-	vec3 tdiffuse	= pow(texture(diffusetex, vTexCoords).rgb, vec3(uExpose));
-	float tmetal	= texture(metallictex, vTexCoords).r;
-	float trough	= texture(roughtex, vTexCoords).r;
+    vec3 tdiffuse	= pow(texture(diffusetex, uv).rgb, vec3(uExpose));
+    float tmetal	= texture(metallictex, uv).r;
+    float trough	= texture(roughtex, uv).r;
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04);
-	F0 = mix(F0, tdiffuse, tmetal);
+    F0 = mix(F0, tdiffuse, tmetal);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
     for(int i = 0; i < 4; ++i)
     {
         // calculate per-light radiance
-        vec3 L = normalize(lightPositions[i] - vPos);
+        vec3 L = normalize(lightPositions[i] - vPos.xyz);
         vec3 H = normalize(V + L);
-        float distance = length(lightPositions[i] - vPos);
+        float distance = length(lightPositions[i] - vPos.xyz);
         float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColors[i] * attenuation;
-        float shadow = ComputeShadow(i);
+        vec3 lightDir = vpTBN * L;
+
+        // Shadows: 0.0 < shadow < 1.0, where shadow is a light allowance factor
+        float dc = max(0.0, dot(-lightDir, N));
+        float shadow = dc > 0.0 ? ComputeShadow(i) : 1.0;
 
         // Cook-Torrance BRDF
-		float NDF = DistributionGGX(N, H, trough);
-		float G   = GeometrySmith(N, V, L, trough);
+        float NDF = DistributionGGX(N, H, trough);
+        float G   = GeometrySmith(N, V, L, trough);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 numerator    = NDF * G * F;
-        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0); 
-        vec3 specular = numerator / max(denominator, 0.0001);
+        float denominator = 4 * max(dot(N, V), 0.00390625) * max(dot(N, L), 0.00390625);
+        vec3 specular = numerator / denominator;
         
         // kS is equal to Fresnel
         vec3 kS = F;
@@ -174,32 +255,31 @@ void main()
         // multiply kD by the inverse metalness such that only non-metals 
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
-		kD *= 1.0 - tmetal;
+        kD *= 1.0 - tmetal;
 
         // scale light by NdotL
         float NdotL = max(dot(N, L), 0.0);
 
         // add to outgoing radiance Lo
-		// note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
-		Lo += (kD * tdiffuse / PI + specular) * radiance * shadow * NdotL;
-
+        // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+        Lo += (kD * tdiffuse / PI + specular) * radiance * shadow * NdotL;
 
     }
 
-	// ambient lighting (we now use IBL as the ambient term)
-	vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, trough);
+    // ambient lighting (we now use IBL as the ambient term)
+    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, trough);
 
     vec3 kS = F;
     vec3 kD = 1.0 - kS;
-	kD *= 1.0 - tmetal;
+    kD *= 1.0 - tmetal;
 
     vec3 irradiance = texture(iemMap, N).rgb;
-	vec3 diffuse    = irradiance * tdiffuse;
+    vec3 diffuse    = irradiance * tdiffuse;
 
     // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-	vec3 prefilteredColor = textureLod(prefilMap, R,  trough * MAX_REFLECTION_LOD).rgb;
-	vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), trough)).rg;
+    vec3 prefilteredColor = textureLod(prefilMap, R,  trough * MAX_REFLECTION_LOD).rgb;
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), trough)).rg;
     vec3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);
 
     vec3 ambient = (kD * diffuse + specular) * ao;
@@ -207,7 +287,7 @@ void main()
     vec3 color = ambient + Lo;
 
     // HDR tonemapping
-	color = tonemapFilmic(color * uExpose);
+    color = tonemapFilmic(color * uExpose);
     //color = color / (color + vec3(1.0));
     // gamma correct
     //color = pow(color, vec3(0.454545454545));

@@ -57,6 +57,11 @@ Texture* Material::LoadNorm()
     return &textures->at(texture_typ::normal);
 }
 
+Texture* Material::LoadHeight()
+{
+	return &textures->at(texture_typ::bump);
+}
+
 Texture* Material::LoadKd()
 {
     return &textures->at(texture_typ::diffuse);
@@ -75,6 +80,11 @@ Texture* Material::LoadRefl()
 void Material::ReadNorm(char *file)
 {
     ReadImageTexture(file, texture_typ::normal, 3);
+}
+
+void Material::ReadHeight(char* file)
+{
+	ReadImageTexture(file, texture_typ::bump, 1);
 }
 
 void Material::ReadKd(char *file)
@@ -212,6 +222,14 @@ int MaterialSet::LoadMtlFile(char* file)
 		{
 			str = strtok_s(NULL, WINEOL, &tokptr);
 			cur_material->ReadNorm(str);
+
+			continue;
+		}
+
+		if (strcmp(cmd, "disp") == 0)
+		{
+			str = strtok_s(NULL, WINEOL, &tokptr);
+			cur_material->ReadHeight(str);
 
 			continue;
 		}

@@ -238,7 +238,7 @@ GLuint shadowColorMap;
 struct objtex_maps
 {
     std::string name;
-    GLuint diffuse, rough, reflect, norm;
+    GLuint diffuse, rough, reflect, norm, bump;
 };
 
 std::vector<struct objtex_maps> objtextures;
@@ -549,7 +549,7 @@ Display()
     Uber->Use();
     Uber->SetUniformVariable((char*)"uProj", projection);
     Uber->SetUniformVariable((char*)"uLightSpaceMatrix", *lightSpaceMatrix);
-    Uber->SetUniformVariable((char*)"ao", 1.f);
+    Uber->SetUniformVariable((char*)"ao", 0.2f);
     Uber->SetUniformVariable((char*)"uExpose", 2.2f);
 
     //Back->Use();
@@ -635,7 +635,7 @@ Display()
     for (auto obj : telescopeObj)
     {
         std::string cur_mat = obj->GetMaterial();
-        GLuint dif = NULL, refl = NULL, rough = NULL, normal = NULL;
+        GLuint dif = NULL, refl = NULL, rough = NULL, normal = NULL, bump = NULL;
 
         for (objtex_maps &textures : objtextures)
         {
@@ -645,10 +645,15 @@ Display()
                 rough = textures.rough;
                 refl = textures.reflect;
                 normal = textures.norm;
+                bump = textures.bump;
+
+                break;
             }
 
             continue;
         }
+
+        Uber->SetUniformVariable((char*)"uTexScale", 1.f);
 
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, dif);
@@ -658,6 +663,8 @@ Display()
         glBindTexture(GL_TEXTURE_2D, refl);
         glActiveTexture(GL_TEXTURE8);
         glBindTexture(GL_TEXTURE_2D, normal);
+        glActiveTexture(GL_TEXTURE9);
+        glBindTexture(GL_TEXTURE_2D, bump);
 
         Uber->SetUniformVariable((char*)"uModelMatrix", objmodel);
         Uber->SetUniformVariable((char*)"uModel", objfile);
@@ -670,6 +677,8 @@ Display()
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE9);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
         
@@ -716,7 +725,7 @@ Display()
     Back->Use();
     Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
-    Back->SetUniformVariable((char*)"uExpose", 1.8f);
+    Back->SetUniformVariable((char*)"uExpose", 1.6f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
@@ -725,7 +734,7 @@ Display()
     Back->Use(0);
 
     /*Brdf->Use();
-    renderQuad();
+    brdfQuad->Draw();
     Brdf->UnUse();*/
 
     glEnable(GL_CULL_FACE);
@@ -1161,14 +1170,18 @@ InitGraphics()
     brdfQuad->CollapseCommonVertices(false);
     brdfQuad->glBegin(GL_TRIANGLE_STRIP);
 
-    brdfQuad->glVertex3f(-1., 1., 0.);
     brdfQuad->glTexCoord2f(0., 1.);
-    brdfQuad->glVertex3f(-1., -1., 0.);
-    brdfQuad->glTexCoord2f(0., 0.);
+    brdfQuad->glColor3f(0., 0., 0.);
     brdfQuad->glVertex3f(-1., 1., 0.);
+    brdfQuad->glTexCoord2f(0., 0.);
+    brdfQuad->glColor3f(0., 0., 0.);
+    brdfQuad->glVertex3f(-1., -1., 0.);
     brdfQuad->glTexCoord2f(1., 1.);
-    brdfQuad->glVertex3f(1., -1., 0.);
+    brdfQuad->glColor3f(0., 0., 0.);
+    brdfQuad->glVertex3f(-1., 1., 0.);
     brdfQuad->glTexCoord2f(1., 0.);
+    brdfQuad->glColor3f(0., 0., 0.);
+    brdfQuad->glVertex3f(1., -1., 0.);
 
     brdfQuad->glEnd();
 
@@ -1502,8 +1515,7 @@ InitGraphics()
     glViewport(0, 0, 1024, 1024);
     Brdf->Use();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    renderQuad();
-    //brdfQuad->Draw();
+    brdfQuad->Draw();
     Brdf->Use(0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1520,7 +1532,7 @@ InitGraphics()
         glGenTextures(1, &cur_maps.diffuse);
         glBindTexture(GL_TEXTURE_2D, cur_maps.diffuse);
 
-        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.diffuse, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1534,7 +1546,7 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.rough);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.rough, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.rough, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1548,7 +1560,7 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.reflect);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.reflect, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1562,11 +1574,25 @@ InitGraphics()
         glBindTexture(GL_TEXTURE_2D, cur_maps.norm);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTextureParameteri(cur_maps.norm, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.norm, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16, curtex.textW, curtex.textH, 0, GL_RGB, GL_UNSIGNED_SHORT, curtex.img16);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        curtex = *matter.m->LoadHeight();
+
+        glGenTextures(1, &cur_maps.bump);
+        glBindTexture(GL_TEXTURE_2D, cur_maps.bump);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTextureParameteri(cur_maps.bump, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+        glTextureParameteri(cur_maps.bump, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(cur_maps.bump, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(cur_maps.bump, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R16F, curtex.textW, curtex.textH, 0, GL_RED, GL_FLOAT, curtex.img16);
         glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -2468,7 +2494,7 @@ void renderSphere()
             }
             oddRow = !oddRow;
         }
-        indexCount = indices.size();
+        indexCount = (unsigned int)indices.size();
 
         std::vector<float> data;
         for (unsigned int i = 0; i < positions.size(); ++i)

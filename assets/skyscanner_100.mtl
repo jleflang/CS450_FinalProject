@@ -14,6 +14,7 @@ map_Kd textures\\orionskyscanner 100mm 3d model_Base_BaseColor.png
 map_Ns textures\\orionskyscanner 100mm 3d model_Base_Roughness.png
 refl textures\\orionskyscanner 100mm 3d model_Base_Metallic.png
 norm textures\\orionskyscanner 100mm 3d model_Base_Normal.png
+disp textures\\orionskyscanner 100mm 3d model_Base_Height.png
 
 newmtl Dovetail_And_Focuser
 Ns 225.000000
@@ -28,6 +29,7 @@ map_Kd textures\\orionskyscanner 100mm 3d model_Dovetail And Focuser_BaseColor.p
 map_Ns textures\\orionskyscanner 100mm 3d model_Dovetail And Focuser_Roughness.png
 refl textures\\orionskyscanner 100mm 3d model_Dovetail And Focuser_Metallic.png
 norm textures\\orionskyscanner 100mm 3d model_Dovetail And Focuser_Normal.png
+disp textures\\orionskyscanner 100mm 3d model_Dovetail And Focuser_Height.png
 
 newmtl Nuts_And_Bolts
 Ns 225.000000
@@ -42,6 +44,7 @@ map_Kd textures\\orionskyscanner 100mm 3d model_Nuts And Bolts_BaseColor.png
 map_Ns textures\\orionskyscanner 100mm 3d model_Nuts And Bolts_Roughness.png
 refl textures\\orionskyscanner 100mm 3d model_Nuts And Bolts_Metallic.png
 norm textures\\orionskyscanner 100mm 3d model_Nuts And Bolts_Normal.png
+disp textures\\orionskyscanner 100mm 3d model_Nuts And Bolts_Height.png
 
 newmtl Optical_Tube_Fix
 Ns 225.000000
@@ -56,6 +59,7 @@ map_Kd textures\\orionskyscanner 100mm 3d model_Optical Tube_BaseColor.png
 map_Ns textures\\orionskyscanner 100mm 3d model_Optical Tube_Roughness.png
 refl textures\\orionskyscanner 100mm 3d model_Optical Tube_Metallic.png
 norm textures\\orionskyscanner 100mm 3d model_Optical Tube_Normal.png
+disp textures\\orionskyscanner 100mm 3d model_Optical Tube_Height.png
 
 newmtl Screw_Knobs
 Ns 225.000000
@@ -70,3 +74,4 @@ map_Kd textures\\orionskyscanner 100mm 3d model_Screw Knobs_BaseColor.png
 map_Ns textures\\orionskyscanner 100mm 3d model_Screw Knobs_Roughness.png
 refl textures\\orionskyscanner 100mm 3d model_Screw Knobs_Metallic.png
 norm textures\\orionskyscanner 100mm 3d model_Screw Knobs_Normal.png
+disp textures\\orionskyscanner 100mm 3d model_Screw Knobs_Height.png

@@ -34,7 +34,7 @@ VertexBufferObject::AddVertex( GLfloat x, GLfloat y, GLfloat z )
 	if( verbose )
 		fprintf( stderr, "Point %8.3f,%8.3f,%8.3f is new\n", x, y, z );
 
-	struct Point pt = { x, y, z,  c_nx, c_ny, c_nz,   c_s, c_t };
+	struct Point pt = { x, y, z,  c_nx, c_ny, c_nz,   c_s, c_t,   c_u, c_v, 0.,   c_uu, c_uv, 0. };
 	PointVec.push_back( pt );
 	int ptindex = (int)PointVec.size( ) - 1;
 	if( collapseCommonVertices )
@@ -114,6 +114,17 @@ VertexBufferObject::Draw( )
 			//glEnableClientState( GL_TEXTURE_COORD_ARRAY );
 		}
 
+		if (hasTangents)
+		{
+			glEnableVertexAttribArray(3);
+			glVertexAttribPointer(3, THREE_VALUES, GL_FLOAT, GL_FALSE, sizeof(struct Point), (GLvoid*)ELEMENT_OFFSET(&parray[0].x, &parray[0].u));
+		}
+
+		if (hasBitangents)
+		{
+			glEnableVertexAttribArray(4);
+			glVertexAttribPointer(4, THREE_VALUES, GL_FLOAT, GL_FALSE, sizeof(struct Point), (GLvoid*)ELEMENT_OFFSET(&parray[0].x, &parray[0].ui));
+		}
 
 		glUnmapBuffer( GL_ARRAY_BUFFER );
 		parray = NULL;
@@ -213,19 +224,19 @@ VertexBufferObject::glNormal3fv( GLfloat *nxyz )
 }
 
 
-//void
-//VertexBufferObject::glColor3f( GLfloat r, GLfloat g, GLfloat b )
-//{
-//	hasColors = true;
-//	c_r = r;	c_g = g;	c_b = b;
-//}
-//
-//
-//void
-//VertexBufferObject::glColor3fv( GLfloat *rgb )
-//{
-//	glColor3f( rgb[0], rgb[1], rgb[2] );
-//}
+void
+VertexBufferObject::glColor3f( GLfloat r, GLfloat g, GLfloat b )
+{
+	hasColors = true;
+	c_r = r;	c_g = g;	c_b = b;
+}
+
+
+void
+VertexBufferObject::glColor3fv( GLfloat *rgb )
+{
+	glColor3f( rgb[0], rgb[1], rgb[2] );
+}
 
 
 void
@@ -240,6 +251,20 @@ void
 VertexBufferObject::glTexCoord2fv( GLfloat *st )
 {
 	glTexCoord2f( st[0], st[1] );
+}
+
+void
+VertexBufferObject::AddTangent(GLfloat u, GLfloat v, GLfloat w)
+{
+	hasTangents = true;
+	c_u = u;	c_v = v;	c_w = w;
+}
+
+void
+VertexBufferObject::AddBitangent(GLfloat u, GLfloat v, GLfloat w)
+{
+	hasBitangents = true;
+	c_uu = u;	c_uv = v;	c_uw = w;
 }
 
 

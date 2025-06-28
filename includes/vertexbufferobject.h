@@ -20,6 +20,8 @@ struct Point
 	float nx, ny, nz;
 	//float r, g, b;
 	float s, t;
+	float u, v, h;
+	float ui, vi, hi;
 };
 
 
@@ -57,10 +59,12 @@ typedef std::map< Key, int >	PMap;
 class VertexBufferObject
 {
     private:
-	bool				hasVertices, hasNormals, hasColors, hasTexCoords;
+	bool				hasVertices, hasNormals, hasColors, hasTexCoords, hasTangents, hasBitangents;
 	float				c_r, c_g, c_b;
 	float				c_nx, c_ny, c_nz;
 	float				c_s, c_t;
+	float				c_u, c_v, c_w;
+	float				c_uu, c_uv, c_uw;
 	std::string			material;
 
 	GLenum				topology;
@@ -93,8 +97,8 @@ class VertexBufferObject
 	std::string GetMaterial();
 	void SetMaterial(char*);
 	void glBegin( GLenum );
-	//void glColor3f( GLfloat, GLfloat, GLfloat );
-	//void glColor3fv( GLfloat * );
+	void glColor3f( GLfloat, GLfloat, GLfloat );
+	void glColor3fv( GLfloat * );
 	void glEnd( );
 	void glNormal3f( GLfloat, GLfloat, GLfloat );
 	void glNormal3fv( GLfloat * );
@@ -102,6 +106,8 @@ class VertexBufferObject
 	void glTexCoord2fv( GLfloat * );
 	void glVertex3f( GLfloat, GLfloat, GLfloat );
 	void glVertex3fv( GLfloat * );
+	void AddTangent(GLfloat, GLfloat, GLfloat);
+	void AddBitangent(GLfloat, GLfloat, GLfloat);
 	void Print( char * = (char *)"", FILE * = stderr );
 	void RestartPrimitive( );
 	void SetVerbose( bool );
