@@ -23,7 +23,7 @@ tonemapFilmic(vec3 x)
 void 
 main()
 {		
-    vec3 envColor = texture(uenvMap, vPos).rgb;
+    vec3 envColor = textureLod(uenvMap, vPos, 0.0).rgb;
     
     // HDR tonemap and gamma correct
 	envColor = tonemapFilmic(envColor * uExpose);

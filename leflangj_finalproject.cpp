@@ -356,7 +356,7 @@ main(int argc, char* argv[])
 
     // create the display structures that will not change:
 
-    InitLists();
+    //InitLists();
 
     // init all the global variables used by Display( ):
     // this will also post a redisplay
@@ -379,21 +379,21 @@ main(int argc, char* argv[])
     return 0;
 }
 
-#ifdef _DEBUG
-void GLAPIENTRY
-DebugOutput(GLenum source,
-    GLenum type,
-    GLuint id,
-    GLenum severity,
-    GLsizei length,
-    const GLchar* message,
-    const void* userParam)
-{
-    fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
-        type, severity, message);
-}
-#endif // DEBUG
+//#ifdef _DEBUG
+//void GLAPIENTRY
+//DebugOutput(GLenum source,
+//    GLenum type,
+//    GLuint id,
+//    GLenum severity,
+//    GLsizei length,
+//    const GLchar* message,
+//    const void* userParam)
+//{
+//    fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+//        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
+//        type, severity, message);
+//}
+//#endif // DEBUG
 
 
 // this is where one would put code that is to be called
@@ -444,17 +444,17 @@ Display()
     glm::mat4 model(1.f);
 
     glm::vec3 light_translate[] = {
-        glm::vec3(5.f * (float)cos(2. * M_PI), 2.f, 5.f * (float)sin(2 * M_PI)),
+        glm::vec3(5.f * (float)cos(3. * M_PI), 7.f, 5.f * (float)sin(5. * M_PI)),
         glm::vec3(4.9f * (float)sin(theta), 8.f, -3.f),
         glm::vec3(-7.f * (float)cos(theta), -7.f * (float)sin(theta), -6.f),
-        glm::vec3(5.f * (float)sin(2. * M_PI), 2.f, 5.f * (float)cos(2 * M_PI)),
+        glm::vec3(5.f * (float)sin(2. * M_PI), 8.2f, 10.f * (float)cos(2. * M_PI)),
     };
 
     glm::vec3 light_color[] = {
         glm::vec3(600.,600.,200.),
         glm::vec3(600.,200.,600.),
         glm::vec3(200.,600.,600.),
-        glm::vec3(400.,600.,400.),
+        glm::vec3(200.,400.,200.),
     };
 
     glm::mat4 L0_td = glm::translate(model, light_translate[0]);
@@ -725,7 +725,7 @@ Display()
     Back->Use();
     Back->SetUniformVariable((char*)"uProj", projection);
     Back->SetUniformVariable((char*)"uView", modelview);
-    Back->SetUniformVariable((char*)"uExpose", 1.6f);
+    Back->SetUniformVariable((char*)"uExpose", 1.8f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
     envCubeObj->Draw();
@@ -733,11 +733,12 @@ Display()
 
     Back->Use(0);
 
-    /*Brdf->Use();
-    brdfQuad->Draw();
-    Brdf->UnUse();*/
+    //Brdf->Use();
+    //brdfQuad->Draw();
+    //renderQuad();
+    //Brdf->UnUse();
 
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
 
 
     // #ifdef DEMO_Z_FIGHTING
@@ -1121,8 +1122,8 @@ InitGraphics()
 
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
-    glDebugMessageCallback(DebugOutput, 0);
-    glDebugMessageControl(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_ERROR, GL_DEBUG_SEVERITY_HIGH, 0, NULL, GL_TRUE);
+    /*glDebugMessageCallback(DebugOutput, 0);
+    glDebugMessageControl(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_ERROR, GL_DEBUG_SEVERITY_HIGH, 0, NULL, GL_TRUE);*/
 #endif
 
     glEnable(GL_MULTISAMPLE);
@@ -1163,10 +1164,10 @@ InitGraphics()
     LoadObjFile((char*)"assets\\skyscanner_100.obj", &telescopeObj, materiallib);
     //telescopeObj->glEnd();
 
-    //glShadeModel(GL_FLAT);
-    //glDisable(GL_NORMALIZE);
+    /*glShadeModel(GL_FLAT);
+    glDisable(GL_NORMALIZE);*/
 
-    brdfQuad = new VertexBufferObject();
+    /*brdfQuad = new VertexBufferObject();
     brdfQuad->CollapseCommonVertices(false);
     brdfQuad->glBegin(GL_TRIANGLE_STRIP);
 
@@ -1183,12 +1184,12 @@ InitGraphics()
     brdfQuad->glColor3f(0., 0., 0.);
     brdfQuad->glVertex3f(1., -1., 0.);
 
-    brdfQuad->glEnd();
+    brdfQuad->glEnd();*/
 
 #ifndef _DEBUG
-    brdfQuad->SetVerbose(false);
+    //brdfQuad->SetVerbose(false);
 #else
-    brdfQuad->SetVerbose(true);
+    //brdfQuad->SetVerbose(true);
 #endif // !_DEBUG
 
     Back = new GLSLProgram();
@@ -1335,11 +1336,11 @@ InitGraphics()
     glGenFramebuffers(1, &framebuf);
     glGenRenderbuffers(1, &renderbuf);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
-    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+    /*glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);*/
 
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 2048, 2048);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
+    glNamedRenderbufferStorage(renderbuf, GL_DEPTH_COMPONENT24, 2048, 2048);
+    glNamedFramebufferRenderbuffer(framebuf, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuf);
     
     // Init the Env HDR
     // Set STBI to flip images for texture loading
@@ -1374,12 +1375,12 @@ InitGraphics()
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
     glm::mat4 captureViews[] =
     {
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
     };
 
     Environment->Use();
@@ -1410,7 +1411,7 @@ InitGraphics()
     glBindTexture(GL_TEXTURE_CUBE_MAP, iemMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 256, 256, 0, GL_RGB, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1420,8 +1421,8 @@ InitGraphics()
 
 
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
-    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
+    //glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+    glNamedRenderbufferStorage(renderbuf, GL_DEPTH_COMPONENT24, 256, 256);
 
     // pbr: solve diffuse integral by convolution to create an irradiance (cube)map.
     // -----------------------------------------------------------------------------
@@ -1499,7 +1500,7 @@ InitGraphics()
 
     // pre-allocate enough memory for the LUT texture.
     glBindTexture(GL_TEXTURE_2D, brdf);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 1024, 1024, 0, GL_RG, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
     // be sure to set wrapping mode to GL_CLAMP_TO_EDGE
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1508,14 +1509,15 @@ InitGraphics()
 
     // then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
-    glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1024, 1024);
+    //glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
+    glNamedRenderbufferStorage(renderbuf, GL_DEPTH_COMPONENT24, 512, 512);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdf, 0);
 
-    glViewport(0, 0, 1024, 1024);
+    glViewport(0, 0, 512, 512);
     Brdf->Use();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    brdfQuad->Draw();
+    //brdfQuad->Draw();
+    renderQuad();
     Brdf->Use(0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1743,10 +1745,10 @@ InitLists()
 
     glutSetWindow(MainWindow);
 
-    SphereList = glGenLists(1);
+    /*SphereList = glGenLists(1);
     glNewList(SphereList, GL_COMPILE);
     OsuSphere(.5, 360, 48);
-    glEndList();
+    glEndList();*/
 
     /*ObjFileList = glGenLists(1);
     glNewList(ObjFileList, GL_COMPILE);
@@ -1755,12 +1757,12 @@ InitLists()
 
     // create the axes:
 
-    AxesList = glGenLists(1);
+    /*AxesList = glGenLists(1);
     glNewList(AxesList, GL_COMPILE);
     glLineWidth(AXES_WIDTH);
     Axes(1.5);
     glLineWidth(1.);
-    glEndList();
+    glEndList();*/
 }
 
 
