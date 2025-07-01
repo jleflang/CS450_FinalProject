@@ -24,7 +24,7 @@ void Material::ReadImageTexture(char* img, int typ, int nchan)
     Texture cur_texture = {};
 	// Set STBI to flip images for texture loading
 	stbi_set_flip_vertically_on_load(1);
-	if (typ != texture_typ::normal)
+	if ((typ != texture_typ::normal) && (typ != texture_typ::bump))
 	{
 		unsigned char* tmp = stbi_load((char*)texture_dir.c_str(), &cur_texture.textH, &cur_texture.textW, &cur_texture.nrComp, nchan);
 		if (tmp != NULL)

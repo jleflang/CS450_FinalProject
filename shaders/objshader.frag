@@ -36,84 +36,57 @@ uniform vec3 lightColors[4];
 
 const float PI = 3.14159265359;
 const float A = 6.2;
-const float heightScale = 0.05;
+const float heightScale = 0.01;
 
-// Adapted from https://github.com/panthuncia/webgl_test/blob/main/index.html
 vec3 ContactRefineParallax(vec2 uv)
 {
-    
-    vec3 tCam = vpTBNinv * uCamPos;
-    vec3 tFrag = vpTBNinv * vPos.xyz;
-    vec3 viewDir = normalize(tCam - tFrag);
+	const int refinementSteps = 64;
+	const int maxSteps = 32;
+	
+	vec3 viewDir = normalize(vpTBNinv * uCamPos - vpTBNinv * vPos.xyz);
+	
+	// Steep Parallax Mapping for approximate intersection
+    vec2 currentTexCoords = uv;
+	float layerD = 1. / float(maxSteps);
+	float currentLayerD = 0.0;
+    float currentHeight = texture(heighttex, currentTexCoords).r;
+	vec2 deltaUV = viewDir.xy * (heightScale * currentHeight);
 
-    float maxHeight = heightScale;
-    float minHeight = maxHeight*1.0;
+    for (int i = 0; i < maxSteps; i++) {
+        currentTexCoords -= deltaUV;
+		currentLayerD += layerD;
+        currentHeight = texture(heighttex, currentTexCoords).r;
 
-    int mSteps = 16;
-
-    float viewCorr = (-viewDir.z) + 2.0;
-    float stepSz = 1.0 / (float(mSteps) + 1.0);
-    vec2 sOffset = viewDir.xy * vec2(maxHeight, maxHeight) * stepSz;
-
-    vec2 lastOff = fract(fma(viewDir.xy, vec2(minHeight, minHeight), uv) + 1.0);
-    float lastRayD = 1.0;
-    float lastH = 1.0;
-
-    vec2 p1;
-    vec2 p2;
-    bool refine = false;
-
-    while (mSteps > 0) {
-        // Advance ray in direction of TS view direction
-        vec2 candidateOffset = fract((lastOff-sOffset) + 1.0);
-        float currentRayDepth = lastRayD - stepSz;
-
-        // Sample height map at this offset
-        float currentHeight = texture(heighttex, candidateOffset).r;
-        currentHeight = viewCorr * currentHeight;
-        // Test our candidate depth
-        if (currentHeight > currentRayDepth)
-        {
-            p1 = vec2(currentRayDepth, currentHeight);
-            p2 = vec2(lastRayD, lastH);
-            // Break if this is the contact refinement pass
-            if (refine) {
-                lastH = currentHeight;
-                break;
-            // Else, continue raycasting with squared precision
-            } else {
-                refine = true;
-                lastRayD = p2.x;
-                stepSz /= float(mSteps);
-                sOffset /= float(mSteps);
-                continue;
-            }
+        if (currentHeight < currentLayerD) { // Check if ray is below surface
+            break;
         }
-        lastOff = candidateOffset;
-        lastRayD = currentRayDepth;
-        lastH = currentHeight;
-        mSteps -= 1;
     }
 
-    // Interpolate between final two points
-    float diff1 = p1.x - p1.y;
-    float diff2 = p2.x - p2.y;
-    float denominator = diff2 - diff1;
+    // Contact Refinement (e.g., Binary Search)
+	
+    vec2 low = currentTexCoords - layerD;
+    vec2 high = currentTexCoords;
+	float refineD = 1. / float(refinementSteps);
+	float midHeight = 0.0;
 
-    float parallaxAmount = 0.0;
-    if (denominator != 0.00) {
-        parallaxAmount = (p1.x * diff2 - p2.x * diff1) / denominator;
+    for (int i = 0; i < refinementSteps; i++) {
+        vec2 mid = (low + high) * 0.5;
+        midHeight = texture(heighttex, mid).r;
+
+        if (midHeight < refineD) {
+            high = mid;
+        } else {
+            low = mid;
+        }
     }
 
-    float offset = fma((1.0 - parallaxAmount), -maxHeight, minHeight);
-
-    return vec3(viewDir.xy * offset + uv, lastH);
+    return vec3(uv, midHeight);
 }
 
 vec3 getNormalFromMap(vec2 uv)
 {
     vec3 tanNorm = texture(normtex, uv).rgb;
-    vec3 tangentNormal = normalize(tanNorm * 2.0 - 1.0);
+    vec3 tangentNormal = tanNorm * 2.0 - 1.0;
     //tangentNormal.g = 1. - tangentNormal.g;
 
     return normalize(vpTBN * tangentNormal);
@@ -226,17 +199,20 @@ void main()
 {
     vec2 uv = vTexCoords;
     uv *= uTexScale;
+	uv += -0.0;
+	vec3 V = normalize(uCamPos-vPos.xyz);
 
     vec3 uvh = ContactRefineParallax(uv);
     uv = uvh.xy;
 
-    vec3 V = normalize(uCamPos-vPos.xyz);
     vec3 N = getNormalFromMap(uv);
     vec3 R = reflect(V, N);
 
     vec3 tdiffuse	= pow(texture(diffusetex, uv).rgb, vec3(uExpose));
     float tmetal	= texture(metallictex, uv).r;
-    float trough	= texture(roughtex, uv).r;
+    float trough	= texture(roughtex, uv).r * uvh.z;
+	
+	//if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    

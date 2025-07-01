@@ -1318,7 +1318,7 @@ InitGraphics()
 
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG32F, shadows[0], shadows[1], 4, 0, GL_RGBA, GL_FLOAT, NULL);
     glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
@@ -1432,7 +1432,7 @@ InitGraphics()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCube);
 
-    glViewport(0, 0, 128, 128); // don't forget to configure the viewport to the capture dimensions.
+    glViewport(0, 0, 256, 256); // don't forget to configure the viewport to the capture dimensions.
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -1594,7 +1594,7 @@ InitGraphics()
         glTextureParameteri(cur_maps.bump, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameteri(cur_maps.bump, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(cur_maps.bump, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_R16F, curtex.textW, curtex.textH, 0, GL_RED, GL_FLOAT, curtex.img16);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, curtex.textW, curtex.textH, 0, GL_RED, GL_UNSIGNED_SHORT, curtex.img16);
         glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
 
