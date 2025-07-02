@@ -43,7 +43,7 @@ vec3 ContactRefineParallax(vec2 uv)
     const int refinementSteps = 64;
     const int maxSteps = 32;
     
-    vec3 viewDir = normalize(vpTBNinv * uCamPos - vpTBNinv * vPos.xyz);
+    vec3 viewDir = normalize(vpTBN * uCamPos - vpTBN * vPosVS.xyz);
     
     // Steep Parallax Mapping for approximate intersection
     vec2 currentTexCoords = uv;
@@ -87,9 +87,9 @@ vec3 getNormalFromMap(vec2 uv)
 {
     vec3 tanNorm = texture(normtex, uv).rgb;
     vec3 tangentNormal = tanNorm * 2.0 - 1.0;
-    //tangentNormal.g = 1. - tangentNormal.g;
+    tangentNormal.g = 1. - tangentNormal.g;
 
-    return normalize(vpTBN * tangentNormal);
+    return normalize(tangentNormal);
 }
 // ----------------------------------------------------------------------------
 // Piecewise linear interpolation
@@ -206,11 +206,11 @@ void main()
     uv = uvh.xy;
 
     vec3 N = getNormalFromMap(uv);
-    vec3 R = reflect(V, N);
+    vec3 R = reflect(-V, N);
 
     vec3 tdiffuse   = pow(texture(diffusetex, uv).rgb, vec3(uExpose));
     float tmetal    = texture(metallictex, uv).r;
-    float trough    = texture(roughtex, uv).r * uvh.z;
+    float trough    = texture(roughtex, uv).r + uvh.z;
     
     //if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
 
@@ -218,9 +218,11 @@ void main()
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, tdiffuse, tmetal);
+	
+	float NdotV = dot(N, V);
     
     // ambient lighting (we now use IBL as the ambient term)
-    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, trough);
+    vec3 F = fresnelSchlickRoughness(NdotV, F0, trough);
 
     vec3 kS = F;
     vec3 kD = 1.0 - kS;
@@ -232,7 +234,7 @@ void main()
     // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(prefilMap, R,  trough * MAX_REFLECTION_LOD).rgb;
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), trough)).rg;
+    vec2 brdf  = texture(brdfLUT, vec2(NdotV, trough)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 ambient = fma(kD, diffuse, specular) * ao;
@@ -247,18 +249,17 @@ void main()
         float distance = length(lightPositions[i] - vPos.xyz);
         float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColors[i] * attenuation;
-        vec3 lightDir = vpTBNinv * L;
+        vec3 lightDir = vpTBN * L;
 
         // Shadows: 0.0 < shadow < 1.0, where shadow is a light allowance factor
         float dc = max(0.0, dot(-lightDir, N));
-        float shadow = dc > 0.0 ? ComputeShadow(-lightDir, i) : 1.0;
+        float shadow = dc > 0.0 ? ComputeShadow(lightDir, i) : 1.0;
 
         // Cook-Torrance BRDF
         float NDF = DistributionGGX(N, H, trough);
         float G   = GeometrySmith(N, V, L, trough);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
         float NdotL = dot(N, L);
-        float NdotV = dot(N, V);
            
         vec3 numerator    = NDF * G * F;
         float denominator = 4;
@@ -276,12 +277,12 @@ void main()
         kD *= 1.0 - tmetal;
         
         // Oren-Nayar diffuse term
-        vec3 ondif = orennayar(dot(L, V), NdotL, NdotV, trough, tdiffuse);
+        vec3 ondif = kD * orennayar(dot(L, V), NdotL, NdotV, trough, tdiffuse);
 
         // Cook-Torrance specular term
         vec3 ct = fma(kD, (tdiffuse / PI), specular);
         
-        Lo += radiance * mix(ct, ondif, fresnelSchlickRoughness(NdotL, F0, trough)) * shadow * max(NdotL, 0.0);
+        Lo += radiance * mix(ondif, ct, fresnelSchlickRoughness(NdotL, F0, trough)) * shadow * max(NdotL, 0.0);
     }
     
     Lo += ambient;
