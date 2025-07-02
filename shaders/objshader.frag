@@ -40,21 +40,21 @@ const float heightScale = 0.01;
 
 vec3 ContactRefineParallax(vec2 uv)
 {
-	const int refinementSteps = 64;
-	const int maxSteps = 32;
-	
-	vec3 viewDir = normalize(vpTBNinv * uCamPos - vpTBNinv * vPos.xyz);
-	
-	// Steep Parallax Mapping for approximate intersection
+    const int refinementSteps = 64;
+    const int maxSteps = 32;
+    
+    vec3 viewDir = normalize(vpTBNinv * uCamPos - vpTBNinv * vPos.xyz);
+    
+    // Steep Parallax Mapping for approximate intersection
     vec2 currentTexCoords = uv;
-	float layerD = 1. / float(maxSteps);
-	float currentLayerD = 0.0;
+    float layerD = 1. / float(maxSteps);
+    float currentLayerD = 0.0;
     float currentHeight = texture(heighttex, currentTexCoords).r;
-	vec2 deltaUV = viewDir.xy * (heightScale * currentHeight);
+    vec2 deltaUV = viewDir.xy * (heightScale * currentHeight);
 
     for (int i = 0; i < maxSteps; i++) {
         currentTexCoords -= deltaUV;
-		currentLayerD += layerD;
+        currentLayerD += layerD;
         currentHeight = texture(heighttex, currentTexCoords).r;
 
         if (currentHeight < currentLayerD) { // Check if ray is below surface
@@ -63,11 +63,11 @@ vec3 ContactRefineParallax(vec2 uv)
     }
 
     // Contact Refinement (e.g., Binary Search)
-	
+    
     vec2 low = currentTexCoords - layerD;
     vec2 high = currentTexCoords;
-	float refineD = 1. / float(refinementSteps);
-	float midHeight = 0.0;
+    float refineD = 1. / float(refinementSteps);
+    float midHeight = 0.0;
 
     for (int i = 0; i < refinementSteps; i++) {
         vec2 mid = (low + high) * 0.5;
@@ -105,13 +105,13 @@ float ComputeShadow(const vec3 uvh, const int lightlayer) {
     // Perspective divide
     //vec2 screenCoords = fragPosLightSpace.xy / fragPosLightSpace.w;
     //screenCoords = screenCoords * 0.5 + 0.5; // [0, 1]
-	vec2 screenCoords = uvh.xy / uvh.z;
+    vec2 screenCoords = uvh.xy / uvh.z;
     screenCoords = screenCoords * 0.5 + 0.5; // [0, 1]
 
-    const float distance = uvh.z; // Use raw distance instead of linear junk	
+    const float distance = uvh.z; // Use raw distance instead of linear junk    
     vec2 moments = texture(shadowMap, vec3(screenCoords, lightlayer)).rg;
-	if (distance <= moments.x)
-		return 1.0;
+    if (distance <= moments.x)
+        return 1.0;
 
     float p = step(distance, moments.x);
     float variance = max(moments.y - (moments.x * moments.x), 0.00002);
@@ -135,19 +135,19 @@ vec3 tonemapFilmic(vec3 x)
 // Taken from https://github.com/glslify/glsl-diffuse-oren-nayar/blob/master/index.glsl
 vec3 orennayar(float LdotV, float NdotL, float NdotV, float roughness, vec3 albedo)
 {
-	float s = LdotV - NdotL * NdotV;
-	float t = mix(1.0, max(NdotL, NdotV), step(0.0, s));
+    float s = LdotV - NdotL * NdotV;
+    float t = mix(1.0, max(NdotL, NdotV), step(0.0, s));
 
-	float sigma2 = roughness*roughness;
-	float A = 1.0 + sigma2 * (albedo.r / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
-	A /= 3.;
-	float Ag = 1.0 + sigma2 * (albedo.g / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
-	A += Ag / 3.;
-	float Ab = 1.0 + sigma2 * (albedo.b / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
-	A += Ab / 3.;
-	float B = 0.45 * sigma2 / (sigma2 + 0.09);
+    float sigma2 = roughness*roughness;
+    float A = 1.0 + sigma2 * (albedo.r / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
+    A /= 3.;
+    float Ag = 1.0 + sigma2 * (albedo.g / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
+    A += Ag / 3.;
+    float Ab = 1.0 + sigma2 * (albedo.b / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
+    A += Ab / 3.;
+    float B = 0.45 * sigma2 / (sigma2 + 0.09);
 
-	return albedo * max(0.0, NdotL) * (A + B * s / t) / PI;
+    return albedo * max(0.0, NdotL) * (A + B * s / t) / PI;
 } 
 // ----------------------------------------------------------------------------
 float DistributionGGX(vec3 N, vec3 H, float roughness)
@@ -199,8 +199,8 @@ void main()
 {
     vec2 uv = vTexCoords;
     uv *= uTexScale;
-	uv += -0.0;
-	vec3 V = normalize(uCamPos-vPos.xyz);
+    uv += -0.0;
+    vec3 V = normalize(uCamPos-vPos.xyz);
 
     vec3 uvh = ContactRefineParallax(uv);
     uv = uvh.xy;
@@ -208,18 +208,18 @@ void main()
     vec3 N = getNormalFromMap(uv);
     vec3 R = reflect(V, N);
 
-    vec3 tdiffuse	= pow(texture(diffusetex, uv).rgb, vec3(uExpose));
-    float tmetal	= texture(metallictex, uv).r;
-    float trough	= texture(roughtex, uv).r * uvh.z;
-	
-	//if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
+    vec3 tdiffuse   = pow(texture(diffusetex, uv).rgb, vec3(uExpose));
+    float tmetal    = texture(metallictex, uv).r;
+    float trough    = texture(roughtex, uv).r * uvh.z;
+    
+    //if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, tdiffuse, tmetal);
-	
-	// ambient lighting (we now use IBL as the ambient term)
+    
+    // ambient lighting (we now use IBL as the ambient term)
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, trough);
 
     vec3 kS = F;
@@ -257,8 +257,8 @@ void main()
         float NDF = DistributionGGX(N, H, trough);
         float G   = GeometrySmith(N, V, L, trough);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
-		float NdotL = dot(N, L);
-		float NdotV = dot(N, V);
+        float NdotL = dot(N, L);
+        float NdotV = dot(N, V);
            
         vec3 numerator    = NDF * G * F;
         float denominator = 4;
@@ -274,19 +274,17 @@ void main()
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
         kD *= 1.0 - tmetal;
-		
-		// Use Oren-Nayar for the diffuse term
-		vec3 ondif = orennayar(dot(L, V), NdotL, NdotV, trough, tdiffuse);
-		
-		// scale light by NdotL
-        NdotL = max(dot(N, L), 0.0);
+        
+        // Oren-Nayar diffuse term
+        vec3 ondif = orennayar(dot(L, V), NdotL, NdotV, trough, tdiffuse);
 
-        // add to outgoing radiance Lo
-        // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
-        Lo += fma(kD, ondif, specular) * radiance * shadow * NdotL;
+        // Cook-Torrance specular term
+        vec3 ct = fma(kD, (tdiffuse / PI), specular);
+        
+        Lo += radiance * mix(ct, ondif, fresnelSchlickRoughness(NdotL, F0, trough)) * shadow * max(NdotL, 0.0);
     }
-	
-	Lo += ambient;
+    
+    Lo += ambient;
 
     // HDR tonemapping
     vec3 color = tonemapFilmic(Lo * uExpose);

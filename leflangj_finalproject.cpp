@@ -1500,7 +1500,7 @@ InitGraphics()
 
     // pre-allocate enough memory for the LUT texture.
     glBindTexture(GL_TEXTURE_2D, brdf);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 1024, 1024, 0, GL_RG, GL_FLOAT, 0);
     // be sure to set wrapping mode to GL_CLAMP_TO_EDGE
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1510,10 +1510,10 @@ InitGraphics()
     // then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
     glBindFramebuffer(GL_FRAMEBUFFER, framebuf);
     //glBindRenderbuffer(GL_RENDERBUFFER, renderbuf);
-    glNamedRenderbufferStorage(renderbuf, GL_DEPTH_COMPONENT24, 512, 512);
+    glNamedRenderbufferStorage(renderbuf, GL_DEPTH_COMPONENT24, 1024, 1024);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdf, 0);
 
-    glViewport(0, 0, 512, 512);
+    glViewport(0, 0, 1024, 1024);
     Brdf->Use();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //brdfQuad->Draw();
